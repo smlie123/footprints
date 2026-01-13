@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const applyImportBtn = document.getElementById('apply-import');
   const aboutDialog = document.getElementById('about-dialog');
   const closeAboutBtn = document.getElementById('close-about');
+  const addNoteDialog = document.getElementById('add-note-dialog');
+  const closeAddNoteBtn = document.getElementById('close-add-note');
+  const addNoteTextEl = document.getElementById('add-note-text');
+  const confirmAddNoteBtn = document.getElementById('confirm-add-note');
   const menuExportBtn = document.getElementById('menu-export');
   const menuImportBtn = document.getElementById('menu-import');
   const menuAboutBtn = document.getElementById('menu-about');
@@ -45,10 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingImportData = null;
   let currentView = 'timeline';
   let selectedCategory = 'All';
+  let pendingAddContext = null;
 
   setDefaultTodayRange();
   initCalendarControls();
   initViewToggles();
+  initThoughtModal();
   initSidebar();
   initMenuAndDialogs();
   loadAllNotes();
@@ -143,6 +149,346 @@ document.addEventListener('DOMContentLoaded', () => {
     viewMasonryBtn?.addEventListener('click', () => setView('masonry'));
   }
 
+  function initThoughtModal() {
+    const viewThoughtBtn = document.getElementById('view-thought');
+    const thoughtDialog = document.getElementById('thought-dialog');
+    const closeThoughtBtn = document.getElementById('close-thought');
+    const thoughtTextEl = document.getElementById('thought-text');
+    const thoughtMetaEl = document.getElementById('thought-meta');
+    const thoughtCommentsEl = document.getElementById('thought-comments');
+    const thoughtCommentsListEl = document.getElementById('thought-comments-list');
+    const thoughtCommentInput = document.getElementById('thought-comment-input');
+    const thoughtCommentSubmit = document.getElementById('thought-comment-submit');
+    const thoughtThemeToggle = document.getElementById('thought-theme-toggle');
+
+    if (!viewThoughtBtn || !thoughtDialog || !closeThoughtBtn || !thoughtTextEl || !thoughtMetaEl) return;
+
+    // Theme Logic
+    const toggleTheme = (isDark) => {
+        if (isDark) {
+            thoughtDialog.classList.add('dark-mode');
+            if (thoughtThemeToggle) thoughtThemeToggle.textContent = 'Light';
+        } else {
+            thoughtDialog.classList.remove('dark-mode');
+            if (thoughtThemeToggle) thoughtThemeToggle.textContent = 'Dark';
+        }
+    };
+
+    // Load preference
+    chrome.storage.local.get(['thoughtTheme'], (result) => {
+        if (result.thoughtTheme === 'dark') {
+            toggleTheme(true);
+        }
+    });
+
+    thoughtThemeToggle?.addEventListener('click', () => {
+        const isDark = thoughtDialog.classList.contains('dark-mode');
+        toggleTheme(!isDark);
+        chrome.storage.local.set({ thoughtTheme: !isDark ? 'dark' : 'light' });
+    });
+
+    let currentThoughtGroup = null;
+
+    const renderCommentsList = () => {
+      if (!currentThoughtGroup || !thoughtCommentsListEl) return;
+      thoughtCommentsListEl.innerHTML = '';
+      
+      // Filter items that have content (these are comments/notes)
+      // If the group was formed by a highlight (quote), then all items with content are comments.
+      // If the group was formed by a standalone note, the note itself is content.
+      // But we are displaying the "main" text. 
+      // Let's assume:
+      // - If we displayed a quote, then any item with content is a comment.
+      // - If we displayed content (standalone), then any OTHER item with content is a comment?
+      //   Actually, standalone notes usually don't have other items unless we added them.
+      //   The current data model doesn't explicitly link "replies". 
+      //   It links by "quote" or "range".
+      //   So if we add a new note with the same quote/range, it becomes part of the group.
+      
+      const comments = currentThoughtGroup.items.filter(item => item.content && item.content.trim());
+      
+      // If we are displaying a standalone note, the "main" text IS one of these contents.
+      // We should probably NOT display the main text as a comment again.
+      // But `currentThoughtGroup.items` contains ALL items.
+      // The `renderRandomThought` logic decides what text to show.
+      // If `currentThoughtGroup.quote` exists, we showed the quote. So ALL contents are comments.
+      // If `currentThoughtGroup.quote` does NOT exist, we showed `items[0].content`.
+      // So we should exclude `items[0]` from comments list? Or just show everything else?
+      
+      let commentsToShow = comments;
+      if (!currentThoughtGroup.quote) {
+        // Standalone note case: The first item's content is the "Thought".
+        // So comments are the REST of the items.
+        // But `items` might not be sorted by creation time in the group object we build on the fly?
+        // Let's assume we sort them by time.
+        commentsToShow = comments.filter(c => c.content !== thoughtTextEl.textContent.replace(/^"|"$/g, ''));
+      }
+
+      if (commentsToShow.length === 0) {
+        // Optional: show "No comments yet" or just empty
+      }
+
+      commentsToShow.forEach(comment => {
+        const div = document.createElement('div');
+        div.className = 'thought-comment-item';
+        
+        const textDiv = document.createElement('div');
+        textDiv.textContent = comment.content;
+        div.appendChild(textDiv);
+        
+        const footerDiv = document.createElement('div');
+        footerDiv.className = 'thought-comment-footer';
+
+        const dateDiv = document.createElement('div');
+        dateDiv.className = 'thought-comment-date';
+        dateDiv.textContent = new Date(comment.createdAt).toLocaleString();
+        footerDiv.appendChild(dateDiv);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'thought-comment-delete';
+        deleteBtn.title = 'Delete thought';
+        deleteBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
+        deleteBtn.onclick = () => handleDeleteComment(comment.id);
+        footerDiv.appendChild(deleteBtn);
+
+        div.appendChild(footerDiv);
+        
+        thoughtCommentsListEl.appendChild(div);
+      });
+    };
+
+    const handleDeleteComment = async (commentId) => {
+        if (!confirm('Are you sure you want to delete this thought?')) return;
+
+        // Remove from storage
+        const result = await chrome.storage.local.get(['notes']);
+        let notes = result.notes || [];
+        notes = notes.filter(n => n.id !== commentId);
+        await chrome.storage.local.set({ notes });
+
+        // Update local state
+        allNotes = notes;
+        if (currentThoughtGroup) {
+            currentThoughtGroup.items = currentThoughtGroup.items.filter(item => item.id !== commentId);
+        }
+
+        // Re-render
+        renderCommentsList();
+        renderMeta();
+    };
+
+    const handleSubmitComment = async () => {
+        const text = (thoughtCommentInput?.value || '').trim();
+        if (!text || !currentThoughtGroup) return;
+
+        const newNote = {
+          id: Date.now(),
+          content: text,
+          createdAt: new Date().toISOString(),
+          quote: currentThoughtGroup.quote || thoughtTextEl.textContent.replace(/^"|"$/g, ''), // Use displayed text as quote reference if needed
+          url: currentThoughtGroup.url || '',
+          range: currentThoughtGroup.range || null
+        };
+        
+        // Save
+        const result = await chrome.storage.local.get(['notes']);
+        const notes = result.notes || [];
+        notes.unshift(newNote);
+        await chrome.storage.local.set({ notes });
+        
+        // Update local state
+        allNotes = notes; // Ideally we wait for listener, but for immediate UI feedback:
+        currentThoughtGroup.items.push(newNote);
+        
+        // Clear input
+        thoughtCommentInput.value = '';
+        
+        // Re-render list
+        renderCommentsList();
+        
+        // Update comment count button
+        const count = currentThoughtGroup.items.filter(i => i.content && i.content.trim()).length;
+        // Note: if standalone, we might need to adjust count logic to match display
+        // But simpler is just to re-render the whole thought or update the button text.
+        // Let's update the specific button if possible, or just re-render meta.
+        // Since we don't have ref to button easily, let's just re-render meta (it's fast).
+        renderMeta();
+    };
+    
+    thoughtCommentSubmit?.addEventListener('click', handleSubmitComment);
+    thoughtCommentInput?.addEventListener('keydown', (e) => {
+        // Ctrl+Enter or Cmd+Enter to submit
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            handleSubmitComment();
+        }
+    });
+
+    const renderMeta = () => {
+        if (!currentThoughtGroup) return;
+        thoughtMetaEl.innerHTML = '';
+        
+        const item = currentThoughtGroup.items[0]; // Representative item for date/url
+        
+        // Info Icon
+        const infoIcon = document.createElement('div');
+        infoIcon.className = 'thought-info-icon';
+        infoIcon.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <div class="thought-tooltip">Some thoughts are worth meeting again, even after time has moved on.</div>
+        `;
+        thoughtMetaEl.appendChild(infoIcon);
+
+        // Date
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = new Date(item.createdAt).toLocaleDateString();
+        thoughtMetaEl.appendChild(dateSpan);
+        
+        // Locate Button
+        const locateBtn = document.createElement('button');
+        locateBtn.className = 'thought-btn';
+        locateBtn.innerHTML = '<span class="iconfont icon-location"></span> Locate';
+        if (!currentThoughtGroup.url) {
+            locateBtn.disabled = true;
+            locateBtn.style.opacity = '0.5';
+            locateBtn.style.cursor = 'default';
+        } else {
+            locateBtn.onclick = () => {
+            locateNote(item);
+            };
+        }
+        thoughtMetaEl.appendChild(locateBtn);
+        
+        // Comment Button
+        // Count comments
+        let commentCount = 0;
+        if (currentThoughtGroup.quote) {
+             commentCount = currentThoughtGroup.items.filter(i => i.content && i.content.trim()).length;
+        } else {
+             // Standalone: count items excluding the main one? 
+             // Or just count all items? User said "if there are annotations, show count".
+             // For standalone, the "main" one IS the content. So maybe count - 1?
+             // Let's stick to "count of items with content".
+             // If it's a standalone note (1 item), count is 1. Does that make sense?
+             // Maybe "1 comment" looks weird if it IS the note.
+             // Let's say: if highlight, count = items with content.
+             // If standalone, count = items with content - 1 (replies).
+             const allContentItems = currentThoughtGroup.items.filter(i => i.content && i.content.trim());
+             commentCount = allContentItems.length;
+             if (!currentThoughtGroup.quote && commentCount > 0) commentCount--; 
+        }
+
+        const commentBtn = document.createElement('button');
+        commentBtn.className = 'thought-btn';
+        const countSuffix = commentCount > 0 ? ` ${commentCount}` : '';
+        commentBtn.innerHTML = `<span class="iconfont icon-comment"></span> Thoughts${countSuffix}`;
+        commentBtn.onclick = () => {
+            thoughtCommentsEl.classList.toggle('hidden');
+            if (!thoughtCommentsEl.classList.contains('hidden')) {
+                renderCommentsList();
+                setTimeout(() => thoughtCommentInput.focus(), 100);
+            }
+        };
+        thoughtMetaEl.appendChild(commentBtn);
+        
+        // Change Button
+        const changeBtn = document.createElement('button');
+        changeBtn.className = 'thought-btn';
+        changeBtn.innerHTML = '<span class="iconfont icon-sync"></span> Change';
+        changeBtn.onclick = () => {
+            renderRandomThought();
+        };
+        thoughtMetaEl.appendChild(changeBtn);
+    };
+
+    const renderRandomThought = () => {
+      // Group all notes to find "Thought Groups"
+      const groups = {};
+      allNotes.forEach(n => {
+          let key;
+          if (!n.range && (!n.quote || n.quote.trim() === '')) {
+            key = `unique-note-${n.id}`; // Standalone note
+          } else {
+            // Group by range (if exists) or quote+url
+            key = n.range ? JSON.stringify(n.range) : `quote:${(n.quote || '').trim()}:${n.url || ''}`;
+          }
+          if (!groups[key]) groups[key] = { 
+              quote: n.quote || '', 
+              range: n.range || null, 
+              url: n.url || '', 
+              items: [] 
+          };
+          groups[key].items.push(n);
+      });
+      
+      const groupKeys = Object.keys(groups);
+      if (groupKeys.length === 0) {
+        thoughtTextEl.textContent = "No footprints yet. Go leave some!";
+        thoughtTextEl.style.fontSize = "24px";
+        thoughtMetaEl.innerHTML = '';
+        return;
+      }
+
+      const randomKey = groupKeys[Math.floor(Math.random() * groupKeys.length)];
+      currentThoughtGroup = groups[randomKey];
+      
+      // Hide comments initially
+      thoughtCommentsEl.classList.add('hidden');
+      
+      // Text logic
+      let text = '';
+      if (currentThoughtGroup.quote) {
+          text = currentThoughtGroup.quote;
+      } else {
+          // Standalone note: use content of first item
+          if (currentThoughtGroup.items.length > 0) {
+              text = currentThoughtGroup.items[0].content;
+          }
+      }
+      
+      // Dynamic font size
+      const len = text.length;
+      let fontSize = 24;
+      if (len > 50) {
+        fontSize = Math.max(14, 24 - Math.floor((len - 50) / 30));
+      }
+      
+      thoughtTextEl.textContent = `"${text}"`;
+      thoughtTextEl.style.fontSize = `${fontSize}px`;
+      
+      renderMeta();
+    };
+
+    const openModal = () => {
+      renderRandomThought();
+      thoughtDialog.classList.remove('hidden');
+      // Force reflow
+      void thoughtDialog.offsetWidth;
+      thoughtDialog.classList.add('active');
+    };
+
+    const closeModal = () => {
+      thoughtDialog.classList.remove('active');
+      setTimeout(() => {
+        thoughtDialog.classList.add('hidden');
+      }, 300); // Match transition duration
+    };
+
+    viewThoughtBtn.addEventListener('click', openModal);
+    closeThoughtBtn.addEventListener('click', closeModal);
+
+    // ESC key to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && thoughtDialog.classList.contains('active')) {
+        closeModal();
+      }
+    });
+  }
+
   function setView(view) {
     if (currentView === view) return;
     currentView = view;
@@ -222,12 +568,23 @@ document.addEventListener('DOMContentLoaded', () => {
   function initSidebar() {
     if (!sidebarEl) return;
     const collapsed = localStorage.getItem('homeSidebarCollapsed') === '1';
-    if (collapsed) sidebarEl.classList.add('is-collapsed');
+    if (collapsed) {
+      sidebarEl.classList.add('is-collapsed');
+      const icon = document.getElementById('sidebar-toggle-icon');
+      if (icon) icon.className = 'iconfont icon-indent';
+    } else {
+      const icon = document.getElementById('sidebar-toggle-icon');
+      if (icon) icon.className = 'iconfont icon-outdent';
+    }
 
     sidebarToggleBtn?.addEventListener('click', () => {
       const next = !sidebarEl.classList.contains('is-collapsed');
       sidebarEl.classList.toggle('is-collapsed', next);
       localStorage.setItem('homeSidebarCollapsed', next ? '1' : '0');
+      const icon = document.getElementById('sidebar-toggle-icon');
+      if (icon) {
+        icon.className = next ? 'iconfont icon-indent' : 'iconfont icon-outdent';
+      }
     });
 
     if (searchInputEl) {
@@ -298,19 +655,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         pendingImportData = data;
         const notesCount = Array.isArray(data.notes) ? data.notes.length : 0;
-        if (importStatusEl) importStatusEl.textContent = `已读取备份：notes=${notesCount}`;
+        if (importStatusEl) importStatusEl.textContent = `Backup loaded: notes=${notesCount}`;
       } catch (e) {
         pendingImportData = null;
-        if (importStatusEl) importStatusEl.textContent = '备份文件解析失败';
+        if (importStatusEl) importStatusEl.textContent = 'Failed to parse backup file';
       }
     });
 
     applyImportBtn?.addEventListener('click', async () => {
       if (!pendingImportData) {
-        if (importStatusEl) importStatusEl.textContent = '请先选择有效的备份文件';
+        if (importStatusEl) importStatusEl.textContent = 'Please select a valid backup file first';
         return;
       }
-      if (!confirm('将用备份覆盖当前数据，是否继续？')) return;
+      if (!confirm('This will overwrite current data with the backup. Continue?')) return;
       await chrome.storage.local.clear();
       await chrome.storage.local.set(pendingImportData);
       importDialog?.classList.add('hidden');
@@ -321,6 +678,32 @@ document.addEventListener('DOMContentLoaded', () => {
     closeAboutBtn?.addEventListener('click', () => aboutDialog?.classList.add('hidden'));
     aboutDialog?.addEventListener('click', (e) => {
       if (e.target === aboutDialog) aboutDialog.classList.add('hidden');
+    });
+
+    // Add Annotation Dialog
+    closeAddNoteBtn?.addEventListener('click', () => addNoteDialog?.classList.add('hidden'));
+    addNoteDialog?.addEventListener('click', (e) => {
+      if (e.target === addNoteDialog) addNoteDialog.classList.add('hidden');
+    });
+    confirmAddNoteBtn?.addEventListener('click', async () => {
+      if (!pendingAddContext) { addNoteDialog?.classList.add('hidden'); return; }
+      const text = (addNoteTextEl?.value || '').trim();
+      if (!text) { addNoteDialog?.classList.add('hidden'); return; }
+      const result = await chrome.storage.local.get(['notes']);
+      const notes = result.notes || [];
+      const newNote = {
+        id: Date.now(),
+        content: text,
+        createdAt: new Date().toISOString(),
+        quote: pendingAddContext.quote || null,
+        url: pendingAddContext.url || '',
+        range: pendingAddContext.range || null
+      };
+      notes.unshift(newNote);
+      await chrome.storage.local.set({ notes });
+      addNoteDialog?.classList.add('hidden');
+      pendingAddContext = null;
+      if (addNoteTextEl) addNoteTextEl.value = '';
     });
   }
 
@@ -452,7 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
           rangeEnd.getFullYear() === today.getFullYear() &&
           rangeEnd.getMonth() === today.getMonth() &&
           rangeEnd.getDate() === today.getDate();
-        emptyStateEl.textContent = sameDay ? '今天还没有留下足迹' : 'No footprints yet.';
+        emptyStateEl.textContent = sameDay ? 'No footprints today yet.' : 'No footprints yet.';
       }
       timelineCountEl.textContent = '';
     } else {
@@ -468,56 +851,145 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    sorted.forEach(note => {
+    const groups = {};
+    sorted.forEach(n => {
+      let key;
+      if (!n.range && (!n.quote || n.quote.trim() === '')) {
+        key = `unique-note-${n.id}`;
+      } else {
+        key = n.range ? JSON.stringify(n.range) : `quote:${(n.quote || '').trim()}:${n.url || ''}`;
+      }
+      if (!groups[key]) groups[key] = { quote: n.quote || '', range: n.range || null, url: n.url || '', items: [] };
+      groups[key].items.push(n);
+    });
+    Object.values(groups).forEach(group => {
       const li = document.createElement('li');
-
-      if (note.quote) {
+      li.className = 'timeline-item';
+      const hasReference = group.quote || group.range;
+      
+      // 1. Note Quote (always show full content)
+      if (group.quote) {
         const quoteDiv = document.createElement('div');
         quoteDiv.className = 'note-quote';
-        quoteDiv.textContent = `"${note.quote}"`;
+        quoteDiv.textContent = `"${group.quote}"`;
+        quoteDiv.title = 'Click to locate';
+        
+        if (group.url && group.items.length > 0) {
+            quoteDiv.onclick = () => locateNote({ id: group.items[0].id, url: group.url, range: group.range });
+        }
         li.appendChild(quoteDiv);
       }
 
-      if (note.content) {
+      // 2. Note Items List
+      const listEl = document.createElement('ul');
+      listEl.className = 'note-items';
+      
+      group.items.forEach(item => {
+        if (!item.content || !item.content.trim()) return;
+        
+        const itemLi = document.createElement('li');
+        itemLi.className = 'note-item';
+        
+        // Content
         const contentDiv = document.createElement('div');
         contentDiv.className = 'note-content';
-        contentDiv.textContent = note.content;
-        li.appendChild(contentDiv);
-      }
+        contentDiv.textContent = item.content;
+        itemLi.appendChild(contentDiv);
+        
+        if (hasReference) {
+          const metaDiv = document.createElement('div');
+          metaDiv.className = 'note-meta';
+          
+          const dateSpan = document.createElement('span');
+          dateSpan.className = 'note-date';
+          dateSpan.textContent = new Date(item.createdAt).toLocaleString();
+          metaDiv.appendChild(dateSpan);
+          
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'btn-icon btn-delete';
+          deleteBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
+          deleteBtn.title = 'Delete Note';
+          deleteBtn.onclick = () => deleteNote(item.id);
+          metaDiv.appendChild(deleteBtn);
+          
+          itemLi.appendChild(metaDiv);
+        }
+        listEl.appendChild(itemLi);
+      });
+      li.appendChild(listEl);
 
+      // 3. Footer (Create Time + Actions)
       const footerDiv = document.createElement('div');
       footerDiv.className = 'note-item-footer';
-
-      const dateSpan = document.createElement('span');
-      dateSpan.className = 'note-date';
-      dateSpan.textContent = new Date(note.createdAt).toLocaleString();
-      footerDiv.appendChild(dateSpan);
-
+      
       const actionsDiv = document.createElement('div');
       actionsDiv.className = 'note-actions';
+      
+      // Create Time (Using the latest note's time for now, or the first one in the list)
+      const createTimeSpan = document.createElement('span');
+      createTimeSpan.className = 'group-create-time';
+      if (group.items.length > 0) {
+          createTimeSpan.textContent = new Date(group.items[0].createdAt).toLocaleString();
+      }
+      actionsDiv.appendChild(createTimeSpan);
+      
+      // Action Buttons Container
+      const buttonsDiv = document.createElement('div');
+      buttonsDiv.className = 'note-action-buttons';
 
       const locateBtn = document.createElement('button');
       locateBtn.className = 'btn-icon btn-locate';
-      locateBtn.innerHTML = `<span class="iconfont icon-location" title="${note.url || ''}"></span>`;
+      locateBtn.innerHTML = `<span class="iconfont icon-location" title="${group.url}"></span>`;
       locateBtn.title = 'Locate on Page';
-      if (!note.range || !note.url) {
+      if (!group.url) {
         locateBtn.disabled = true;
-        locateBtn.style.opacity = '0.3';
+        locateBtn.title = 'No web reference to locate';
       } else {
-        locateBtn.onclick = () => locateNote(note);
+        locateBtn.onclick = () => locateNote({ id: group.items[0].id, url: group.url, range: group.range });
       }
+      buttonsDiv.appendChild(locateBtn);
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'btn-icon btn-delete';
-      deleteBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
-      deleteBtn.title = 'Delete Note';
-      deleteBtn.onclick = () => deleteNote(note.id);
-
-      actionsDiv.appendChild(locateBtn);
-      actionsDiv.appendChild(deleteBtn);
+      if (hasReference) {
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn-icon btn-add';
+        addBtn.innerHTML = '<span class="iconfont icon-edit"></span>';
+        addBtn.title = 'Add Annotation';
+        addBtn.onclick = () => {
+          pendingAddContext = { quote: group.quote, url: group.url, range: group.range };
+          if (addNoteDialog && addNoteTextEl) {
+            addNoteTextEl.value = '';
+            addNoteDialog.classList.remove('hidden');
+          }
+        };
+        buttonsDiv.appendChild(addBtn);
+      }
+      
+      const deleteGroupBtn = document.createElement('button');
+      deleteGroupBtn.className = 'btn-icon btn-delete';
+      deleteGroupBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
+      deleteGroupBtn.title = 'Delete Entire Footprint';
+      deleteGroupBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const annotationCount = group.items.filter(it => it.content && it.content.trim()).length;
+        let q = (group.quote || '').replace(/\s+/g, ' ').trim();
+        if (q && q.length > 16) q = q.slice(0, 16) + '...';
+        let message;
+        if (annotationCount === 0) {
+          message = q ? `Delete this footprint ‘${q}’ ?` : 'Delete this footprint ?';
+        } else {
+          message = q ? `Delete this footprint ‘${q}’ and its ${annotationCount} annotation?` : `Delete this footprint and its ${annotationCount} annotation?`;
+        }
+        const ok = confirm(message);
+        if (ok) {
+          await deleteGroup(group.items);
+        }
+      };
+      buttonsDiv.appendChild(deleteGroupBtn);
+      
+      actionsDiv.appendChild(buttonsDiv);
       footerDiv.appendChild(actionsDiv);
       li.appendChild(footerDiv);
-
+      
       timelineListEl.appendChild(li);
     });
   }
@@ -557,15 +1029,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function deleteNote(noteId) {
-    if (!confirm('Are you sure you want to delete this note?')) return;
     const result = await chrome.storage.local.get(['notes']);
     let notes = result.notes || [];
+    const target = notes.find(n => n.id === noteId);
+    let preview = '';
+    if (target) {
+      const base = (target.content || target.quote || '').replace(/\s+/g, ' ').trim();
+      preview = base ? (base.length > 16 ? base.slice(0, 16) + '...' : base) : '';
+    }
+    const ok = confirm(preview ? `Delete annotation ‘${preview}’ ?` : 'Delete this note?');
+    if (!ok) return;
     notes = notes.filter(n => n.id !== noteId);
     await chrome.storage.local.set({ notes: notes });
   }
 
   function locateNote(note) {
     chrome.tabs.create({ url: note.url }, (tab) => {
+      if (!note.range) return;
+      
       const tabId = tab.id;
       const listener = (updatedId, changeInfo) => {
         if (updatedId === tabId && changeInfo.status === 'complete') {

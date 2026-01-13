@@ -41,6 +41,32 @@ chrome.tabs.query({}, (tabs) => {
   tabs.forEach(tab => updateBadge(tab.id));
 });
 
+// Migration: Ensure all notes have a color property
+(async function migrateNotesColor() {
+  try {
+    const data = await chrome.storage.local.get(['notes', 'styleConfig']);
+    const notes = data.notes || [];
+    const config = data.styleConfig || { solid: '#F28B82', line: '#FBBC04', dash: '#A7FFEB', wavy: '#D7AEFB' };
+    
+    let changed = false;
+    notes.forEach(note => {
+      // If note has a style but no color, assign the current configured color for that style
+      if (!note.color) {
+        const style = note.style || 'solid';
+        note.color = config[style] || '#F28B82';
+        changed = true;
+      }
+    });
+    
+    if (changed) {
+      await chrome.storage.local.set({ notes });
+      console.log('Footprints: Migrated notes to include color.');
+    }
+  } catch (e) {
+    console.error('Footprints: Migration failed', e);
+  }
+})();
+
 
 // --- Badge Logic ---
 

@@ -42,27 +42,15 @@
         <button id="close-settings" class="close-btn">&times;</button>
       </div>
       
-      <div class="settings-list">
-        <div class="setting-item" data-style="solid">
-          <span class="iconfont icon-solid style-icon"></span>
-          <span class="style-title">Solid</span>
-          <div class="color-block" id="color-block-solid"></div>
+      <div class="settings-preview-section">
+        <div class="settings-preview-label">Toolbar Preview</div>
+        <div id="settings-toolbar-preview" class="settings-toolbar-preview">
+          <!-- Preview content injected by JS -->
         </div>
-        <div class="setting-item" data-style="line">
-          <span class="iconfont icon-line style-icon"></span>
-          <span class="style-title">Line</span>
-          <div class="color-block" id="color-block-line"></div>
-        </div>
-        <div class="setting-item" data-style="dash">
-          <span class="iconfont icon-dash style-icon"></span>
-          <span class="style-title">Dash</span>
-          <div class="color-block" id="color-block-dash"></div>
-        </div>
-        <div class="setting-item" data-style="wavy">
-          <span class="iconfont icon-iocn_wavyLine style-icon"></span>
-          <span class="style-title">Wavy</span>
-          <div class="color-block" id="color-block-wavy"></div>
-        </div>
+      </div>
+
+      <div class="settings-list" id="settings-list">
+        <!-- Dynamically populated by JS -->
       </div>
 
       <!-- Color Picker Popup (inside dialog-content or absolute) -->

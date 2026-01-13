@@ -5,16 +5,16 @@ body {
   background-color: #f8f9fa;
   color: #333;
   min-height: 100vh;
-  display: block; /* Changed from flex/column */
-  overflow-y: auto; /* Allow body to scroll */
+  display: block;
+  overflow-y: auto;
 }
 
 .container {
-  display: block; /* Changed from flex */
+  display: block;
   height: auto;
   padding: 16px;
   box-sizing: border-box;
-  padding-bottom: 72px; /* Space for fixed footer */
+  padding-bottom: 72px;
 }
 
 /* Header Optimization */
@@ -23,7 +23,7 @@ header {
   align-items: baseline;
   gap: 12px;
   margin-bottom: 16px;
-  flex-wrap: wrap; /* Allow wrapping on very small widths */
+  flex-wrap: wrap;
 }
 
 header h2 {
@@ -56,6 +56,7 @@ blockquote {
   font-style: italic;
   max-height: 60px;
   overflow-y: auto;
+  white-space: pre-wrap; /* preserve newlines from selection */
 }
 
 .clear-quote-btn {
@@ -140,8 +141,8 @@ ul#recent-list {
   padding: 0;
   margin: 0;
   position: relative;
-  padding-left: 36px;
-  border-left: 1px solid #eee;
+  padding-left: 20px; /* Reduced for compactness */
+  border-left: 1px solid #e0e0e0; /* Stronger line */
 }
 
 .timeline-item {
@@ -149,12 +150,12 @@ ul#recent-list {
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px;
+  padding: 10px; /* Compact */
+  margin-bottom: 8px; /* Compact */
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px; /* Compact */
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -166,43 +167,69 @@ ul#recent-list {
 .timeline-item::before {
   content: '👣';
   position: absolute;
-  left: -28px;
-  top: 10px;
-  font-size: 16px;
+  left: -30px;
+  top: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border-radius: 50%;
   color: #1a73e8;
   z-index: 1;
+  background-color: #f8f9fa; /* Match body bg */
 }
 
 .note-quote {
   font-style: italic;
   color: #555;
-  margin-bottom: 6px;
-  padding-left: 8px;
-  border-left: 2px solid #e0e0e0;
-  font-size: 13px;
+  margin-bottom: 4px; /* Compact */
+  padding: 0px 10px;
+  background-color: #fffde7; /* Very light yellow */
+  border-left: 3px solid #fbc02d;
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+  white-space: pre-line; /* preserve line breaks within clamped layout */
+  cursor: pointer;
+}
+
+
+
+.note-items {
+  padding-left: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.note-item {
+  list-style: none;
+  border-bottom: 1px solid #eee;
+  padding: 4px 0; /* Compact */
+  margin-bottom: 0;
+}
+
+.note-item:last-child {
+  border-bottom: none;
 }
 
 .note-content {
-  font-size: 14px;
-  color: #202124;
+  font-size: 13px;
+  color: #333;
   line-height: 1.4;
   word-wrap: break-word;
-  margin-bottom: 8px;
 }
 
-.note-item-footer {
+.note-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  border-top: 1px solid #f1f3f4;
-  padding-top: 8px;
-  margin-top: 4px;
+  font-size: 11px;
+  color: #9aa0a6;
 }
 
 .note-date {
@@ -210,17 +237,34 @@ ul#recent-list {
   color: #9aa0a6;
 }
 
+.note-item-footer {
+  border-top: 1px solid #f1f3f4;
+  padding-top: 4px; /* Compact */
+  margin-top: 4px; /* Compact */
+}
 
 .note-actions {
   display: flex;
-  gap: 4px;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.group-create-time {
+  font-size: 11px;
+  color: #9aa0a6;
+}
+
+.note-action-buttons {
+  display: flex;
+  gap: 8px;
 }
 
 .btn-icon {
   background: none;
   border: 1px solid transparent;
   border-radius: 4px;
-  padding: 2px 4px; /* Compact */
+  padding: 2px 4px;
   font-size: 14px;
   color: #5f6368;
   transition: all 0.2s;
@@ -228,6 +272,7 @@ ul#recent-list {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative; /* Added for tooltip positioning */
 }
 
 .btn-icon .iconfont {
@@ -239,6 +284,16 @@ ul#recent-list {
   color: #202124;
 }
 
+.btn-icon:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn-icon:disabled:hover {
+  background-color: transparent;
+  color: #5f6368;
+}
+
 .btn-delete:hover {
   background-color: #fce8e6;
   color: #c5221f;
@@ -247,6 +302,47 @@ ul#recent-list {
 .btn-locate:hover {
   background-color: #e8f0fe;
   color: #1967d2;
+}
+
+/* Tooltip Styles */
+.delete-confirm-tooltip {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  background-color: #323232;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 10;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  cursor: default;
+}
+
+.delete-confirm-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: #323232 transparent transparent transparent;
+}
+
+.confirm-yes {
+  color: #f28b82;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.confirm-yes:hover {
+  text-decoration: underline;
 }
 
 #empty-state {
@@ -268,11 +364,11 @@ footer {
   bottom: 0;
   background-color: rgba(248, 249, 250, 0.95);
   backdrop-filter: blur(5px);
-  padding: 8px 16px; /* Compact padding */
+  padding: 8px 16px;
   border-top: 1px solid #e0e0e0;
-  margin: 0; /* Fixed footer spans full width */
+  margin: 0;
   display: flex;
-  justify-content: space-between; /* Space between for Home/Settings swap */
+  justify-content: space-between;
   align-items: center;
   gap: 12px;
   z-index: 100;
@@ -340,64 +436,138 @@ footer {
 
 /* New Settings UI */
 .settings-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-.setting-item {
-  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
+  gap: 0;
+  margin-top: 0; /* Changed from 10px because preview is above now */
   border: 1px solid #e0e0e0;
   border-radius: 8px;
+  overflow: hidden;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
   background-color: #fff;
-  transition: box-shadow 0.2s, border-color 0.2s;
-  cursor: pointer;
+  border-bottom: 1px solid #f1f3f4;
+  transition: background-color 0.2s;
 }
 
-.setting-item:hover {
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+.setting-row:last-child {
+  border-bottom: none;
 }
 
-.setting-item.active {
-  border: 2px solid #1a73e8;
-  background-color: #e8f0fe;
+.setting-row:hover {
+  background-color: #f8f9fa;
 }
 
-.style-icon {
-  font-size: 40px;
-  width: auto;
-  text-align: center;
-  color: #5f6368; /* Default color, will be overridden */
+.setting-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.style-title {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  font-size: 12px;
+.setting-icon {
+  font-size: 20px;
   color: #5f6368;
-  font-weight: 500;
-  text-transform: capitalize;
+  width: 24px;
+  text-align: center;
 }
 
-.color-block {
+.setting-label {
+  font-size: 14px;
+  color: #202124;
+  font-weight: 500;
+}
+
+.setting-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Color Circle */
+.color-circle {
   width: 24px;
   height: 24px;
   border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.1);
   cursor: pointer;
-  border: 1px solid #ddd;
-  transition: transform 0.1s;
+  transition: transform 0.1s, box-shadow 0.1s;
+  position: relative;
 }
 
-.color-block:hover {
+.color-circle:hover {
   transform: scale(1.1);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.color-circle.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 20px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #1a73e8;
+}
+
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
+input:disabled + .slider {
+  background-color: #e0e0e0;
+  cursor: not-allowed;
+}
+
+.tag-badge {
+    font-size: 10px;
+    background: #f1f3f4;
+    color: #5f6368;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
 }
 
 .color-picker-popup {
@@ -442,3 +612,61 @@ footer {
   font-size: 13px;
   color: #555;
 }
+
+/* Settings Preview Section */
+.settings-preview-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.settings-preview-label {
+  font-size: 12px;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+.settings-toolbar-preview {
+  display: flex;
+  gap: 4px;
+  background-color: white;
+  padding: 2px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border: 1px solid rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+}
+
+/* Copied Button Styles for Preview */
+.na-float-btn {
+  border: none;
+  border-radius: 4px;
+  padding: 4px;
+  font-size: 16px;
+  font-weight: normal;
+  cursor: default;
+  background-color: transparent;
+  color: #5f6368;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.na-float-btn .iconfont {
+  color: inherit;
+  font-size: inherit;
+}
+
+/* Dynamic colors will be set via CSS variables on the preview container */
+.na-float-btn.na-style-solid { color: var(--na-color-solid, #F28B82); }
+.na-float-btn.na-style-line { color: var(--na-color-line, #FBBC04); }
+.na-float-btn.na-style-dash { color: var(--na-color-dash, #A7FFEB); }
+.na-float-btn.na-style-wavy { color: var(--na-color-wavy, #D7AEFB); }

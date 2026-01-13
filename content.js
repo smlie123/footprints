@@ -41,14 +41,23 @@ let currentStyleConfig = {
   dash: '#C62828',
   wavy: '#C62828'
 };
+let currentToolVisibility = {
+  solid: true,
+  line: false,
+  dash: false,
+  wavy: false,
+  annotation: true
+};
 let cachedNotes = [];
 
 document.addEventListener('DOMContentLoaded', loadHighlights);
 loadHighlights();
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.notes) {
-    loadHighlights();
+  if (area === 'local') {
+    if (changes.notes || changes.styleConfig || changes.toolVisibility) {
+      loadHighlights();
+    }
   }
 });
 
@@ -109,6 +118,8 @@ function createFloatingButton(range) {
   ];
 
   styles.forEach(style => {
+    if (currentToolVisibility[style.type] === false) return;
+
     const btn = document.createElement('button');
     btn.className = `na-float-btn na-style-${style.type}`;
     
@@ -122,13 +133,16 @@ function createFloatingButton(range) {
   });
 
   // Edit Button
-  const editBtn = document.createElement('button');
-  editBtn.className = 'na-float-btn na-btn-add';
-  editBtn.addEventListener('mousedown', onAddNoteClick);
-  const editIcon = document.createElement('span');
-  editIcon.className = 'iconfont icon-edit';
-  editBtn.appendChild(editIcon);
-  floatingBtn.appendChild(editBtn);
+  // Annotation tool is usually fixed, but check just in case
+  if (currentToolVisibility['annotation'] !== false) {
+    const editBtn = document.createElement('button');
+    editBtn.className = 'na-float-btn na-btn-add';
+    editBtn.addEventListener('mousedown', onAddNoteClick);
+    const editIcon = document.createElement('span');
+    editIcon.className = 'iconfont icon-edit';
+    editBtn.appendChild(editIcon);
+    floatingBtn.appendChild(editBtn);
+  }
   
   const rects = range.getClientRects();
   if (rects.length > 0) {
@@ -169,7 +183,8 @@ async function onStyleClick(e, styleType) {
       quote: text,
       url: window.location.href,
       range: serialized,
-      style: styleType
+      style: styleType,
+      color: currentStyleConfig[styleType]
   };
 
   const result = await chrome.storage.local.get(['notes']);
@@ -206,10 +221,14 @@ function onAddNoteClick(e) {
 // --- Highlight Rendering Logic ---
 
 async function loadHighlights() {
-  const result = await chrome.storage.local.get(['notes', 'styleConfig']);
+  const result = await chrome.storage.local.get(['notes', 'styleConfig', 'toolVisibility']);
   const notes = result.notes || [];
   cachedNotes = notes;
   const styleConfig = result.styleConfig || currentStyleConfig;
+  
+  if (result.toolVisibility) {
+    currentToolVisibility = result.toolVisibility;
+  }
   
   // Update global config and CSS variables
   currentStyleConfig = styleConfig;
@@ -353,11 +372,23 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
   let lastMark = null;
   // Use the ID of the most recent note (or first) for data attribute
   const primaryNoteId = notes[0].id; 
+  const noteColor = notes[0].color;
+  const noteStyle = notes[0].style || 'solid';
 
   nodesToWrap.forEach(node => {
     const mark = document.createElement('mark');
     mark.className = `na-highlight ${styleClass}`;
     mark.dataset.noteIds = JSON.stringify(notes.map(n => n.id));
+    
+    if (noteColor) {
+      if (noteStyle === 'solid') {
+        mark.style.backgroundColor = noteColor;
+      } else if (noteStyle === 'line' || noteStyle === 'dash') {
+        mark.style.borderBottomColor = noteColor;
+      } else if (noteStyle === 'wavy') {
+        mark.style.textDecorationColor = noteColor;
+      }
+    }
     
     let start = 0;
     let end = node.nodeValue.length;
@@ -400,6 +431,9 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
     
     const icon = document.createElement('span');
     icon.className = `iconfont icon-footprints na-icon ${styleClass}`;
+    if (noteColor) {
+      icon.style.color = noteColor;
+    }
     icon.dataset.noteIds = JSON.stringify(notes.map(n => n.id));
     
     // Auto-size icon to match text
@@ -417,10 +451,8 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
       iconContainer.appendChild(countSpan);
     }
     
-    // Add event listeners for Tooltip (on the container)
     iconContainer.addEventListener('mouseenter', (e) => showTooltip(e));
-    // Debug mode: tooltip persists
-    // iconContainer.addEventListener('mouseleave', (e) => hideTooltip(e));
+    iconContainer.addEventListener('mouseleave', (e) => hideTooltip(e));
     
     iconContainer.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -543,6 +575,7 @@ function showTooltip(event) {
       tooltipHideTimeout = null;
     }
   });
+  tooltip.addEventListener('mouseleave', () => removeTooltip());
 
   // Render List
   const list = document.createElement('ul');

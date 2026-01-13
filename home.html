@@ -18,16 +18,17 @@
     <div class="slogan">Every thought leaves a footprint.</div>
     <div class="user-actions">
       <div class="view-toggles">
-        <button id="view-timeline" class="view-btn active">时间轴</button>
-        <button id="view-masonry" class="view-btn">瀑布流</button>
+        <button id="view-timeline" class="view-btn active"><span class="iconfont icon-timeline"></span>&nbsp;Timeline</button>
+        <button id="view-masonry" class="view-btn"><span class="iconfont icon-pubuliu"></span>&nbsp;Masonry</button>
       </div>
+      <button id="view-thought" class="view-btn" title="A thought from your past self"><span class="iconfont icon-footprints"></span></button>
     </div>
   </header>
 
   <div class="main-layout">
     <aside class="sidebar">
       <div class="sidebar-top">
-        <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">☰</button>
+        <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar"><span class="iconfont icon-outdent" id="sidebar-toggle-icon"></span></button>
         <div class="sidebar-title">Calendar</div>
       </div>
 
@@ -38,12 +39,12 @@
       <!-- Timeline Sidebar: Calendar -->
       <div id="sidebar-calendar" class="calendar-card">
         <div class="calendar-header">
-          <button id="cal-prev" class="cal-nav-btn" aria-label="Previous month">◀</button>
+        <button id="cal-prev" class="cal-nav-btn" aria-label="Previous month"><span class="iconfont icon-left"></span></button>
           <div class="calendar-selects">
             <select id="cal-year" class="cal-select" aria-label="Year"></select>
             <select id="cal-month" class="cal-select" aria-label="Month"></select>
           </div>
-          <button id="cal-next" class="cal-nav-btn" aria-label="Next month">▶</button>
+          <button id="cal-next" class="cal-nav-btn" aria-label="Next month"><span class="iconfont icon-right"></span></button>
         </div>
         <div class="calendar-weekdays" id="cal-weekdays">
           <div class="cal-weekday">Mon</div>
@@ -67,11 +68,11 @@
 
       <div class="sidebar-footer">
         <div class="sidebar-menu" id="sidebar-menu">
-          <button id="sidebar-menu-btn" class="sidebar-menu-btn" aria-label="Menu">⋯</button>
+          <button id="sidebar-menu-btn" class="sidebar-menu-btn" aria-label="Menu"><span class="iconfont icon-menu"></span></button>
           <div class="sidebar-menu-dropdown" id="sidebar-menu-dropdown">
-            <button class="sidebar-menu-item" id="menu-export">数据导出（备份）</button>
-            <button class="sidebar-menu-item" id="menu-import">数据导入（恢复）</button>
-            <button class="sidebar-menu-item" id="menu-about">关于我们</button>
+            <button class="sidebar-menu-item" id="menu-export">Export Data (Backup)</button>
+            <button class="sidebar-menu-item" id="menu-import">Import Data (Restore)</button>
+            <button class="sidebar-menu-item" id="menu-about">About</button>
           </div>
         </div>
       </div>
@@ -85,8 +86,8 @@
         <div class="timeline-header">
           <div class="timeline-date" id="timeline-date"></div>
           <div class="timeline-day-switch">
-            <button id="prev-day" class="day-btn">◀</button>
-            <button id="next-day" class="day-btn">▶</button>
+            <button id="prev-day" class="day-btn"><span class="iconfont icon-left"></span></button>
+            <button id="next-day" class="day-btn"><span class="iconfont icon-right"></span></button>
           </div>
           <div class="timeline-count" id="timeline-count"></div>
         </div>
@@ -102,12 +103,12 @@
   <div id="export-dialog" class="dialog hidden">
     <div class="dialog-content">
       <div class="dialog-header">
-        <h3>数据导出（备份）</h3>
+        <h3>Export Data (Backup)</h3>
         <button id="close-export" class="close-btn">×</button>
       </div>
       <textarea id="export-text" class="dialog-textarea" readonly></textarea>
       <div class="dialog-actions">
-        <button id="download-export" class="confirm-btn">下载备份</button>
+        <button id="download-export" class="confirm-btn">Download Backup</button>
       </div>
     </div>
   </div>
@@ -115,13 +116,13 @@
   <div id="import-dialog" class="dialog hidden">
     <div class="dialog-content">
       <div class="dialog-header">
-        <h3>数据导入（恢复）</h3>
+        <h3>Import Data (Restore)</h3>
         <button id="close-import" class="close-btn">×</button>
       </div>
       <input id="import-file" class="dialog-file" type="file" accept="application/json">
       <div id="import-status" class="dialog-status"></div>
       <div class="dialog-actions">
-        <button id="apply-import" class="confirm-btn">恢复数据</button>
+        <button id="apply-import" class="confirm-btn">Apply Restore</button>
       </div>
     </div>
   </div>
@@ -129,12 +130,46 @@
   <div id="about-dialog" class="dialog hidden">
     <div class="dialog-content">
       <div class="dialog-header">
-        <h3>关于我们</h3>
+        <h3>About</h3>
         <button id="close-about" class="close-btn">×</button>
       </div>
       <div class="dialog-about">
         <div class="dialog-about-title">Footprints</div>
         <div class="dialog-about-text">Every thought leaves a footprint.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="add-note-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>Add Annotation</h3>
+        <button id="close-add-note" class="close-btn">×</button>
+      </div>
+      <textarea id="add-note-text" class="dialog-textarea" placeholder="Write your annotation..."></textarea>
+      <div class="dialog-actions">
+        <button id="confirm-add-note" class="confirm-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="thought-dialog" class="dialog full-screen hidden">
+    <button id="thought-theme-toggle" class="theme-btn-overlay">Dark</button>
+    <button id="close-thought" class="close-btn-overlay">×</button>
+    <div class="thought-content">
+      <div class="thought-wrapper">
+        <!-- <div class="thought-intro">Some thoughts are worth meeting again, even after time has moved on.</div> -->
+        <div class="thought-divider"></div>
+        <div id="thought-text" class="thought-text"></div>
+        <div class="thought-divider"></div>
+        <div id="thought-meta" class="thought-meta"></div>
+        <div id="thought-comments" class="thought-comments hidden">
+          <div class="thought-comment-input-wrapper">
+             <textarea id="thought-comment-input" placeholder="What does this make you think of now?" class="thought-comment-input"></textarea>
+             <button id="thought-comment-submit" class="thought-comment-submit">Send</button>
+          </div>
+          <div id="thought-comments-list" class="thought-comments-list"></div>
+        </div>
       </div>
     </div>
   </div>

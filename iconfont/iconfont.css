@@ -1,8 +1,8 @@
 @font-face {
   font-family: "iconfont"; /* Project id 5103395 */
-  src: url('iconfont.woff2?t=1768116071868') format('woff2'),
-       url('iconfont.woff?t=1768116071868') format('woff'),
-       url('iconfont.ttf?t=1768116071868') format('truetype');
+  src: url('iconfont.woff2?t=1768313667998') format('woff2'),
+       url('iconfont.woff?t=1768313667998') format('woff'),
+       url('iconfont.ttf?t=1768313667998') format('truetype');
 }
 
 .iconfont {
@@ -11,6 +11,62 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-sync:before {
+  content: "\e786";
+}
+
+.icon-pubuliu:before {
+  content: "\e608";
+}
+
+.icon-export:before {
+  content: "\e791";
+}
+
+.icon-Import:before {
+  content: "\e792";
+}
+
+.icon-file-pdf:before {
+  content: "\e7b8";
+}
+
+.icon-indent:before {
+  content: "\e7f3";
+}
+
+.icon-outdent:before {
+  content: "\e7f4";
+}
+
+.icon-menu:before {
+  content: "\e7f5";
+}
+
+.icon-comment:before {
+  content: "\e8e8";
+}
+
+.icon-timeline:before {
+  content: "\e6c0";
+}
+
+.icon-right:before {
+  content: "\e7eb";
+}
+
+.icon-left:before {
+  content: "\e7ec";
+}
+
+.icon-up:before {
+  content: "\e7ed";
+}
+
+.icon-down:before {
+  content: "\e7ee";
 }
 
 .icon-solid:before {

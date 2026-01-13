@@ -115,7 +115,7 @@ mark.na-highlight.style-dotted-bottom.color-gray { border-bottom-color: #5f6368;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   padding: 0; /* Content handles padding */
-  width: 400px;
+  width: 300px; /* Compact width */
   z-index: 2147483647;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: #e8eaed;
@@ -139,7 +139,7 @@ mark.na-highlight.style-dotted-bottom.color-gray { border-bottom-color: #5f6368;
 }
 
 .na-tooltip-item {
-  padding: 12px 16px 6px 16px;
+  padding: 8px 12px 6px 12px; /* Compact padding */
   border-bottom: 1px solid #3c4043;
   display: flex;
   flex-direction: column;
@@ -159,7 +159,7 @@ mark.na-highlight.style-dotted-bottom.color-gray { border-bottom-color: #5f6368;
 .na-tooltip-header {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px; /* Compact gap */
 }
 
 .na-tooltip-icon {
@@ -218,8 +218,9 @@ mark.na-highlight.style-dotted-bottom.color-gray { border-bottom-color: #5f6368;
   align-items: center;
   color: #5f6368;
   font-style: italic;
-  padding: 16px;
+  padding: 12px; /* Compact padding */
   line-height: 1;
+  font-size: 14px; /* Explicit font size */
 }
 
 .na-tooltip-empty-state span {
@@ -228,7 +229,7 @@ mark.na-highlight.style-dotted-bottom.color-gray { border-bottom-color: #5f6368;
 
 /* Tooltip Footer */
 .na-tooltip-footer {
-  padding: 10px 16px;
+  padding: 8px 12px; /* Compact padding */
   border-top: 1px solid #3c4043;
   display: flex;
   justify-content: flex-end;
