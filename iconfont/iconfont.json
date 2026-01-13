@@ -1,0 +1,93 @@
+{
+  "id": "5103395",
+  "name": "footprints",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "1445324",
+      "name": "solid",
+      "font_class": "solid",
+      "unicode": "e8b3",
+      "unicode_decimal": 59571
+    },
+    {
+      "icon_id": "4767095",
+      "name": "dash",
+      "font_class": "dash",
+      "unicode": "e7fc",
+      "unicode_decimal": 59388
+    },
+    {
+      "icon_id": "7239796",
+      "name": "line",
+      "font_class": "line",
+      "unicode": "e73a",
+      "unicode_decimal": 59194
+    },
+    {
+      "icon_id": "24879394",
+      "name": "iocn_wavyLine",
+      "font_class": "iocn_wavyLine",
+      "unicode": "e611",
+      "unicode_decimal": 58897
+    },
+    {
+      "icon_id": "4765725",
+      "name": "close-circle",
+      "font_class": "close-circle",
+      "unicode": "e77d",
+      "unicode_decimal": 59261
+    },
+    {
+      "icon_id": "4765866",
+      "name": "message",
+      "font_class": "message",
+      "unicode": "e78a",
+      "unicode_decimal": 59274
+    },
+    {
+      "icon_id": "4765891",
+      "name": "setting",
+      "font_class": "setting",
+      "unicode": "e78e",
+      "unicode_decimal": 59278
+    },
+    {
+      "icon_id": "4765897",
+      "name": "location",
+      "font_class": "location",
+      "unicode": "e790",
+      "unicode_decimal": 59280
+    },
+    {
+      "icon_id": "4766676",
+      "name": "delete",
+      "font_class": "delete",
+      "unicode": "e7c3",
+      "unicode_decimal": 59331
+    },
+    {
+      "icon_id": "4766685",
+      "name": "home",
+      "font_class": "home",
+      "unicode": "e7c6",
+      "unicode_decimal": 59334
+    },
+    {
+      "icon_id": "4766959",
+      "name": "edit",
+      "font_class": "edit",
+      "unicode": "e7e1",
+      "unicode_decimal": 59361
+    },
+    {
+      "icon_id": "4544893",
+      "name": "footprints",
+      "font_class": "footprints",
+      "unicode": "ebd9",
+      "unicode_decimal": 60377
+    }
+  ]
+}

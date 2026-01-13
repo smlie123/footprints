@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Footprints</title>
+  <link rel="stylesheet" href="sidepanel.css">
+  <link rel="stylesheet" href="iconfont/iconfont.css">
+</head>
+<body>
+  <div class="container">
+    
+    
+    <div id="quote-section" class="hidden">
+      <blockquote id="quote-text"></blockquote>
+      <span id="clear-quote" class="clear-quote-btn" title="Remove quote">×</span>
+    </div>
+
+    <div class="input-section">
+      <textarea id="note-input" placeholder="Every thought leaves a footprint..."></textarea>
+      <button id="save-btn">Save Footprint</button>
+    </div>
+
+    <div class="recent-section">
+      <h3>Footprints on This Page</h3>
+      <ul id="recent-list">
+        <!-- List items will be injected here -->
+      </ul>
+      <div id="empty-state" class="hidden">No footprints for this page.</div>
+    </div>
+
+    <footer>
+      <button id="settings-btn" class="footer-btn" title="Settings"><span class="iconfont icon-setting"></span></button>
+      <button id="home-btn" class="footer-btn" title="View All Footprints"><span class="iconfont icon-home"></span></button>
+    </footer>
+  </div>
+
+  <!-- Settings Dialog -->
+  <div id="settings-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>Settings</h3>
+        <button id="close-settings" class="close-btn">&times;</button>
+      </div>
+      
+      <div class="settings-list">
+        <div class="setting-item" data-style="solid">
+          <span class="iconfont icon-solid style-icon"></span>
+          <span class="style-title">Solid</span>
+          <div class="color-block" id="color-block-solid"></div>
+        </div>
+        <div class="setting-item" data-style="line">
+          <span class="iconfont icon-line style-icon"></span>
+          <span class="style-title">Line</span>
+          <div class="color-block" id="color-block-line"></div>
+        </div>
+        <div class="setting-item" data-style="dash">
+          <span class="iconfont icon-dash style-icon"></span>
+          <span class="style-title">Dash</span>
+          <div class="color-block" id="color-block-dash"></div>
+        </div>
+        <div class="setting-item" data-style="wavy">
+          <span class="iconfont icon-iocn_wavyLine style-icon"></span>
+          <span class="style-title">Wavy</span>
+          <div class="color-block" id="color-block-wavy"></div>
+        </div>
+      </div>
+
+      <!-- Color Picker Popup (inside dialog-content or absolute) -->
+      <div id="color-picker-popup" class="color-picker-popup hidden">
+        <div class="preset-colors">
+          <!-- 5 Light Colors -->
+          <div class="preset-color" style="background-color: #F28B82;" data-color="#F28B82" title="Light Red"></div>
+          <div class="preset-color" style="background-color: #FBBC04;" data-color="#FBBC04" title="Light Yellow"></div>
+          <div class="preset-color" style="background-color: #A7FFEB;" data-color="#A7FFEB" title="Light Teal"></div>
+          <div class="preset-color" style="background-color: #E6C9A8;" data-color="#E6C9A8" title="Light Beige"></div>
+          <div class="preset-color" style="background-color: #D7AEFB;" data-color="#D7AEFB" title="Light Purple"></div>
+          <!-- 5 Dark Colors -->
+          <div class="preset-color" style="background-color: #C62828;" data-color="#C62828" title="Dark Red"></div>
+          <div class="preset-color" style="background-color: #F57F17;" data-color="#F57F17" title="Dark Yellow"></div>
+          <div class="preset-color" style="background-color: #00695C;" data-color="#00695C" title="Dark Teal"></div>
+          <div class="preset-color" style="background-color: #5D4037;" data-color="#5D4037" title="Dark Brown"></div>
+          <div class="preset-color" style="background-color: #6A1B9A;" data-color="#6A1B9A" title="Dark Purple"></div>
+        </div>
+        <div class="custom-color-section">
+          <label>Custom:</label>
+          <input type="color" id="custom-color-input">
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

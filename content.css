@@ -1,0 +1,320 @@
+#note-anywhere-btn-container {
+  position: absolute;
+  z-index: 2147483647;
+  display: flex;
+  gap: 4px;
+  background-color: white;
+  padding: 2px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  pointer-events: auto;
+  transition: opacity 0.2s;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.na-float-btn {
+  border: none;
+  border-radius: 4px;
+  padding: 4px;
+  font-size: 16px; /* Icon size */
+  font-weight: normal;
+  cursor: pointer;
+  background-color: transparent;
+  color: #5f6368;
+  line-height: 1;
+  transition: background-color 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.na-float-btn:hover {
+  background-color: #f1f3f4;
+  /* Hover color will be handled by specific style classes or fallback */
+}
+
+/* Floating Button Colors */
+.na-float-btn.na-style-solid { color: var(--na-color-solid, #F28B82); }
+.na-float-btn.na-style-line { color: var(--na-color-line, #C62828); }
+.na-float-btn.na-style-dash { color: var(--na-color-dash, #C62828); }
+.na-float-btn.na-style-wavy { color: var(--na-color-wavy, #C62828); }
+
+/* Ensure icon inherits color */
+.na-float-btn .iconfont {
+  color: inherit;
+}
+
+/* Specific colors if needed, but user said "remove button styling" so simple hover is good */
+.na-btn-mark {
+  /* No specific bg */
+}
+
+.na-btn-add {
+  /* No specific bg */
+}
+
+/* Persistent Highlights */
+mark.na-highlight {
+  padding: 0;
+  margin: 0;
+  cursor: pointer; /* Indicate interactive */
+}
+
+/* Icon */
+.na-icon {
+  margin-left: 2px;
+  cursor: pointer;
+  vertical-align: middle;
+  position: relative;
+  display: inline-block;
+  z-index: 10;
+  line-height: 1;
+  color: #5f6368; /* Default icon color (color-gray) */
+}
+
+/* Icon Colors */
+.na-icon.color-gray { color: #5f6368; }
+.na-icon.color-blue { color: #1a73e8; }
+.na-icon.color-red { color: #d93025; }
+.na-icon.color-green { color: #1e8e3e; }
+.na-icon.color-orange { color: #e37400; }
+
+/* Highlight Colors Overrides */
+/* Solid Style */
+mark.na-highlight.style-solid.color-gray { background-color: #e8eaed; }
+mark.na-highlight.style-solid.color-blue { background-color: #d2e3fc; }
+mark.na-highlight.style-solid.color-red { background-color: #fad2cf; }
+mark.na-highlight.style-solid.color-green { background-color: #ceead6; }
+mark.na-highlight.style-solid.color-orange { background-color: #feefc3; }
+
+/* Underline Style */
+mark.na-highlight.style-underline.color-gray { border-bottom-color: #5f6368; }
+mark.na-highlight.style-underline.color-blue { border-bottom-color: #1a73e8; }
+mark.na-highlight.style-underline.color-red { border-bottom-color: #d93025; }
+mark.na-highlight.style-underline.color-green { border-bottom-color: #1e8e3e; }
+mark.na-highlight.style-underline.color-orange { border-bottom-color: #e37400; }
+
+/* Wavy Style */
+mark.na-highlight.style-wavy.color-gray { text-decoration-color: #5f6368; }
+mark.na-highlight.style-wavy.color-blue { text-decoration-color: #1a73e8; }
+mark.na-highlight.style-wavy.color-red { text-decoration-color: #d93025; }
+mark.na-highlight.style-wavy.color-green { text-decoration-color: #1e8e3e; }
+mark.na-highlight.style-wavy.color-orange { text-decoration-color: #e37400; }
+
+/* Dotted Bottom Style (Fallback for others?) */
+mark.na-highlight.style-dotted-bottom.color-gray { border-bottom-color: #5f6368; }
+/* ... and so on ... */
+
+/* Tooltip Styles - Dark Theme Refined */
+.na-tooltip {
+  position: absolute;
+  background: #202124; /* Material Dark */
+  border: 1px solid #3c4043;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  padding: 0; /* Content handles padding */
+  width: 400px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #e8eaed;
+  pointer-events: auto;
+  animation: na-fade-in 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes na-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.na-tooltip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.na-tooltip-item {
+  padding: 12px 16px 6px 16px;
+  border-bottom: 1px solid #3c4043;
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* Reduced gap between content and meta */
+  background: transparent;
+  transition: background-color 0.2s;
+}
+
+.na-tooltip-item:last-child {
+  border-bottom: none;
+}
+
+.na-tooltip-item:hover {
+  background-color: rgba(255,255,255,0.04);
+}
+
+.na-tooltip-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.na-tooltip-icon {
+  color: #9aa0a6;
+  margin-top: 3px; /* Align with 14px text line-height */
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.na-tooltip-content {
+  flex: 1;
+  word-wrap: break-word;
+  line-height: 1.5;
+  color: #e8eaed;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.na-tooltip-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px; /* Small gap from content */
+  height: 20px;
+  padding-left: 24px; /* Indent to align with text start (icon width + gap) */
+}
+
+.na-tooltip-time {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+.na-tooltip-delete {
+  cursor: pointer;
+  color: #5f6368;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.na-tooltip-delete:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  opacity: 1;
+}
+
+/* Empty State */
+.na-tooltip-empty-state {
+  flex-direction: row;
+  align-items: center;
+  color: #5f6368;
+  font-style: italic;
+  padding: 16px;
+  line-height: 1;
+}
+
+.na-tooltip-empty-state span {
+  color: #5f6368;
+}
+
+/* Tooltip Footer */
+.na-tooltip-footer {
+  padding: 10px 16px;
+  border-top: 1px solid #3c4043;
+  display: flex;
+  justify-content: flex-end;
+  background-color: #202124;
+  border-radius: 0 0 8px 8px;
+}
+
+.na-tooltip-add-btn {
+  background: transparent;
+  border: none;
+  color: #e8eaed;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.na-tooltip-add-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+}
+
+.na-tooltip-add-btn .iconfont {
+  font-size: 14px;
+  color: #e8eaed;
+}
+
+/* Icon Container */
+.na-icon-container {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 2px;
+  cursor: pointer;
+}
+
+.na-icon-count {
+  font-size: 10px;
+  color: #5f6368;
+  margin-left: 1px;
+  font-weight: 500;
+  background: #f1f3f4;
+  border-radius: 4px;
+  padding: 0 2px;
+  line-height: 1.2;
+}
+
+/* Dynamic Styles */
+mark.na-highlight.na-style-solid {
+  background-color: var(--na-color-solid, #fff59d);
+  color: inherit;
+}
+
+mark.na-highlight.na-style-line {
+  background-color: transparent;
+  border-bottom: 2px solid var(--na-color-line, #fff59d);
+  color: inherit;
+  text-decoration: none;
+}
+
+mark.na-highlight.na-style-dash {
+  background-color: transparent;
+  border-bottom: 2px dashed var(--na-color-dash, #fff59d);
+  color: inherit;
+  text-decoration: none;
+}
+
+mark.na-highlight.na-style-wavy {
+  background-color: transparent;
+  text-decoration: underline wavy var(--na-color-wavy, #fff59d);
+  text-decoration-thickness: 2px;
+  color: inherit;
+  border-bottom: none;
+}
+
+/* Update Icon to use var */
+.na-icon.na-dynamic-color {
+  color: inherit; 
+}
+
+.na-icon.na-style-solid { color: var(--na-color-solid, #5f6368); }
+.na-icon.na-style-line { color: var(--na-color-line, #5f6368); }
+.na-icon.na-style-dash { color: var(--na-color-dash, #5f6368); }
+.na-icon.na-style-wavy { color: var(--na-color-wavy, #5f6368); }

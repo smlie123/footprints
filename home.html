@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Footprints - Every thought leaves a footprint.</title>
+  <link rel="stylesheet" href="home.css">
+  <link rel="stylesheet" href="iconfont/iconfont.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="top-bar">
+    <div class="brand">
+      <span class="logo-icon iconfont icon-footprints"></span>
+      <span class="logo-text">Footprints</span>
+    </div>
+    <div class="slogan">Every thought leaves a footprint.</div>
+    <div class="user-actions">
+      <div class="view-toggles">
+        <button id="view-timeline" class="view-btn active">时间轴</button>
+        <button id="view-masonry" class="view-btn">瀑布流</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-layout">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">☰</button>
+        <div class="sidebar-title">Calendar</div>
+      </div>
+
+      <div class="sidebar-search">
+        <input id="sidebar-search-input" class="sidebar-search-input" type="search" placeholder="Search footprints...">
+      </div>
+
+      <!-- Timeline Sidebar: Calendar -->
+      <div id="sidebar-calendar" class="calendar-card">
+        <div class="calendar-header">
+          <button id="cal-prev" class="cal-nav-btn" aria-label="Previous month">◀</button>
+          <div class="calendar-selects">
+            <select id="cal-year" class="cal-select" aria-label="Year"></select>
+            <select id="cal-month" class="cal-select" aria-label="Month"></select>
+          </div>
+          <button id="cal-next" class="cal-nav-btn" aria-label="Next month">▶</button>
+        </div>
+        <div class="calendar-weekdays" id="cal-weekdays">
+          <div class="cal-weekday">Mon</div>
+          <div class="cal-weekday">Tue</div>
+          <div class="cal-weekday">Wed</div>
+          <div class="cal-weekday">Thu</div>
+          <div class="cal-weekday">Fri</div>
+          <div class="cal-weekday">Sat</div>
+          <div class="cal-weekday">Sun</div>
+        </div>
+        <div class="calendar-grid" id="cal-grid"></div>
+      </div>
+
+      <!-- Masonry Sidebar: Category List -->
+      <div id="sidebar-categories" class="sidebar-section hidden">
+        <div class="section-title">Categories</div>
+        <ul id="category-list" class="nav-list">
+          <!-- Categories injected here -->
+        </ul>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-menu" id="sidebar-menu">
+          <button id="sidebar-menu-btn" class="sidebar-menu-btn" aria-label="Menu">⋯</button>
+          <div class="sidebar-menu-dropdown" id="sidebar-menu-dropdown">
+            <button class="sidebar-menu-item" id="menu-export">数据导出（备份）</button>
+            <button class="sidebar-menu-item" id="menu-import">数据导入（恢复）</button>
+            <button class="sidebar-menu-item" id="menu-about">关于我们</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Content Area -->
+    <main class="content-area">
+
+      <!-- Main Timeline Content -->
+      <div class="timeline-container">
+        <div class="timeline-header">
+          <div class="timeline-date" id="timeline-date"></div>
+          <div class="timeline-day-switch">
+            <button id="prev-day" class="day-btn">◀</button>
+            <button id="next-day" class="day-btn">▶</button>
+          </div>
+          <div class="timeline-count" id="timeline-count"></div>
+        </div>
+        <ul id="timeline-list" class="timeline-list">
+          <!-- Footprints will be injected here -->
+        </ul>
+        <div id="empty-state" class="empty-timeline hidden">No footprints yet.</div>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="export-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>数据导出（备份）</h3>
+        <button id="close-export" class="close-btn">×</button>
+      </div>
+      <textarea id="export-text" class="dialog-textarea" readonly></textarea>
+      <div class="dialog-actions">
+        <button id="download-export" class="confirm-btn">下载备份</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="import-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>数据导入（恢复）</h3>
+        <button id="close-import" class="close-btn">×</button>
+      </div>
+      <input id="import-file" class="dialog-file" type="file" accept="application/json">
+      <div id="import-status" class="dialog-status"></div>
+      <div class="dialog-actions">
+        <button id="apply-import" class="confirm-btn">恢复数据</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="about-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>关于我们</h3>
+        <button id="close-about" class="close-btn">×</button>
+      </div>
+      <div class="dialog-about">
+        <div class="dialog-about-title">Footprints</div>
+        <div class="dialog-about-text">Every thought leaves a footprint.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="home.js"></script>
+</body>
+</html>
