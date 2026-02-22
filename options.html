@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Footprints Options</title>
+  <link rel="stylesheet" href="iconfont/iconfont.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>
+        <img src="icons/icon48.png" alt="Logo" style="width: 24px; height: 24px;">
+        Footprints
+      </h1>
+    </div>
+    <ul class="nav-menu">
+      <li class="nav-item active" data-tab="toolbar">
+        <span class="iconfont icon-solid"></span> Toolbar
+      </li>
+      <li class="nav-item" data-tab="display">
+        <span class="iconfont icon-line"></span> Display
+      </li>
+    </ul>
+  </div>
+
+  <div class="main-content">
+    <!-- Toolbar Tab -->
+    <div id="toolbar-tab" class="tab-content active">
+      <h2>Toolbar Settings</h2>
+      
+      <!-- Preview Section -->
+      <div class="settings-preview-section">
+        <span class="settings-preview-label">Toolbar Preview</span>
+        <div class="settings-toolbar-preview" id="settings-toolbar-preview">
+          <!-- Preview Items -->
+        </div>
+      </div>
+
+      <!-- Settings List -->
+      <div class="settings-list" id="settings-list">
+        <!-- Setting Rows will be injected here -->
+      </div>
+
+      <!-- Color Picker (Hidden by default) -->
+      <div id="color-picker-popup" class="color-picker-popup hidden">
+        <h3>Select Color</h3>
+        <div class="preset-colors">
+          <!-- Light Colors -->
+          <div class="preset-color" style="background-color: #FFCDD2;" data-color="#FFCDD2" title="Light Red"></div>
+          <div class="preset-color" style="background-color: #FFE0B2;" data-color="#FFE0B2" title="Light Orange"></div>
+          <div class="preset-color" style="background-color: #FFF9C4;" data-color="#FFF9C4" title="Light Yellow"></div>
+          <div class="preset-color" style="background-color: #C8E6C9;" data-color="#C8E6C9" title="Light Green"></div>
+          <div class="preset-color" style="background-color: #BBDEFB;" data-color="#BBDEFB" title="Light Blue"></div>
+          <div class="preset-color" style="background-color: #C5CAE9;" data-color="#C5CAE9" title="Light Indigo"></div>
+          <div class="preset-color" style="background-color: #E1BEE7;" data-color="#E1BEE7" title="Light Violet"></div>
+          
+          <!-- Dark Colors -->
+          <div class="preset-color" style="background-color: #D32F2F;" data-color="#D32F2F" title="Dark Red"></div>
+          <div class="preset-color" style="background-color: #F57C00;" data-color="#F57C00" title="Dark Orange"></div>
+          <div class="preset-color" style="background-color: #FBC02D;" data-color="#FBC02D" title="Dark Yellow"></div>
+          <div class="preset-color" style="background-color: #388E3C;" data-color="#388E3C" title="Dark Green"></div>
+          <div class="preset-color" style="background-color: #1976D2;" data-color="#1976D2" title="Dark Blue"></div>
+          <div class="preset-color" style="background-color: #303F9F;" data-color="#303F9F" title="Dark Indigo"></div>
+          <div class="preset-color" style="background-color: #7B1FA2;" data-color="#7B1FA2" title="Dark Violet"></div>
+        </div>
+        <div class="custom-color-section">
+          <label>Custom:</label>
+          <input type="color" id="custom-color-input">
+        </div>
+        <div class="color-picker-footer">
+          <button id="cancel-color-btn" class="btn-cancel">Cancel</button>
+          <button id="apply-color-btn" class="btn-confirm">Apply</button>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="settings-footer">
+        <button id="apply-settings-btn" class="btn-apply">Apply Changes</button>
+      </div>
+    </div>
+
+    <!-- Display Tab -->
+    <div id="display-tab" class="tab-content">
+      <h2>Display Settings</h2>
+      <p>Display settings coming soon...</p>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

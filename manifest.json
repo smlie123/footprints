@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Footprints",
-  "version": "1.0",
-  "description": "Every thought leaves a footprint.",
+  "name": "Footprints – Web Highlighter, Annotation & Thought Notes",
+  "version": "1.2.0",
+  "description": "a tool that helps you highlight text, add contextual notes, and record your thoughts directly on any webpage.",
   "permissions": [
     "sidePanel",
-    "storage",
-    "tabs"
+    "unlimitedStorage",
+    "tabs",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "<all_urls>"
   ],
   "content_scripts": [
     {
@@ -30,6 +34,7 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
+  "options_page": "options.html",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

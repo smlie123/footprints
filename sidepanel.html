@@ -17,7 +17,20 @@
 
     <div class="input-section">
       <textarea id="note-input" placeholder="Every thought leaves a footprint..."></textarea>
-      <button id="save-btn">Save Footprint</button>
+      <div class="input-actions">
+        <div class="left-actions">
+          <button id="camera-btn" class="action-btn">
+            <svg viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="16" height="16"><path d="M896 320h-106.5c-9.6 0-18.4-5.2-23.2-13.6l-36.9-64.2c-12.7-22.1-36.3-35.8-61.8-35.8H356.5c-25.5 0-49.1 13.7-61.8 35.8l-36.9 64.2c-4.8 8.4-13.6 13.6-23.2 13.6H128c-35.3 0-64 28.7-64 64v448c0 35.3 28.7 64 64 64h768c35.3 0 64-28.7 64-64V384c0-35.3-28.7-64-64-64zM512 768c-88.4 0-160-71.6-160-160s71.6-160 160-160 160 71.6 160 160-71.6 160-160 160z m0-256c-53 0-96 43-96 96s43 96 96 96 96-43 96-96-43-96-96-96z" fill="currentColor"></path></svg>
+            <div class="camera-tooltip">
+              <p>There are two ways to save images:</p>
+              <p>1. Click icon to take a screenshot</p>
+              <p>2. Right-click on image to add to Footprints</p>
+            </div>
+          </button>
+          <span class="input-hint">Ctrl ( ⌘ ) + Enter to save</span>
+        </div>
+        <button id="save-btn">Save Footprint</button>
+      </div>
     </div>
 
     <div class="recent-section">
@@ -30,7 +43,7 @@
 
     <footer>
       <button id="settings-btn" class="footer-btn" title="Settings"><span class="iconfont icon-setting"></span></button>
-      <button id="home-btn" class="footer-btn" title="View All Footprints"><span class="iconfont icon-home"></span></button>
+      <button id="home-btn" class="footer-btn" title="View All Footprints"><span class="iconfont icon-home"></span>&nbsp;All footprints</button>
     </footer>
   </div>
 
@@ -41,39 +54,54 @@
         <h3>Settings</h3>
         <button id="close-settings" class="close-btn">&times;</button>
       </div>
-      
-      <div class="settings-preview-section">
-        <div class="settings-preview-label">Toolbar Preview</div>
-        <div id="settings-toolbar-preview" class="settings-toolbar-preview">
-          <!-- Preview content injected by JS -->
+
+      <div class="quick-settings-section">
+        
+
+        <div class="setting-row" data-setting="dark-mode">
+          <div class="setting-info">
+            <span class="setting-icon">🌙</span>
+            <div>
+              <div class="setting-label">Dark Mode</div>
+              <div class="setting-description">A softer theme for late‑night reading.</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox">
+            <span class="slider"></span>
+          </label>
         </div>
+
+        <div class="setting-row" data-setting="enable-toolbar">
+          <div class="setting-info">
+            <span class="setting-icon">🛠️</span>
+            <div>
+              <div class="setting-label">Enable Toolbar</div>
+              <div class="setting-description">After selecting the text, a toolbar will appear.</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <a class="setting-row setting-row-link" href="options.html" target="_blank">
+          <div class="setting-info">
+            <span class="setting-icon iconfont icon-setting"></span>
+            <div>
+              <div class="setting-label">Open Full Settings</div>
+              <div class="setting-description">Configure tools, styles, and more in detail.</div>
+            </div>
+          </div>
+          <span class="setting-link-arrow">›</span>
+        </a>
       </div>
 
-      <div class="settings-list" id="settings-list">
-        <!-- Dynamically populated by JS -->
-      </div>
-
-      <!-- Color Picker Popup (inside dialog-content or absolute) -->
-      <div id="color-picker-popup" class="color-picker-popup hidden">
-        <div class="preset-colors">
-          <!-- 5 Light Colors -->
-          <div class="preset-color" style="background-color: #F28B82;" data-color="#F28B82" title="Light Red"></div>
-          <div class="preset-color" style="background-color: #FBBC04;" data-color="#FBBC04" title="Light Yellow"></div>
-          <div class="preset-color" style="background-color: #A7FFEB;" data-color="#A7FFEB" title="Light Teal"></div>
-          <div class="preset-color" style="background-color: #E6C9A8;" data-color="#E6C9A8" title="Light Beige"></div>
-          <div class="preset-color" style="background-color: #D7AEFB;" data-color="#D7AEFB" title="Light Purple"></div>
-          <!-- 5 Dark Colors -->
-          <div class="preset-color" style="background-color: #C62828;" data-color="#C62828" title="Dark Red"></div>
-          <div class="preset-color" style="background-color: #F57F17;" data-color="#F57F17" title="Dark Yellow"></div>
-          <div class="preset-color" style="background-color: #00695C;" data-color="#00695C" title="Dark Teal"></div>
-          <div class="preset-color" style="background-color: #5D4037;" data-color="#5D4037" title="Dark Brown"></div>
-          <div class="preset-color" style="background-color: #6A1B9A;" data-color="#6A1B9A" title="Dark Purple"></div>
-        </div>
-        <div class="custom-color-section">
-          <label>Custom:</label>
-          <input type="color" id="custom-color-input">
-        </div>
-      </div>
+      <p class="settings-credits">
+        This extension is crafted by
+        <a href="http://www.jasoncraft.top" target="_blank">jasoncraft.top</a>.
+      </p>
 
     </div>
   </div>

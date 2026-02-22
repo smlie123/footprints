@@ -7,21 +7,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const quoteSection = document.getElementById('quote-section');
   const quoteText = document.getElementById('quote-text');
   const sectionTitle = document.querySelector('.recent-section h3');
+  const body = document.body;
   
   // Settings Elements
   const settingsBtn = document.getElementById('settings-btn');
   const settingsDialog = document.getElementById('settings-dialog');
   const closeSettingsBtn = document.getElementById('close-settings');
-  const colorPickerPopup = document.getElementById('color-picker-popup');
-  const customColorInput = document.getElementById('custom-color-input');
-  const presetColors = document.querySelectorAll('.preset-color');
+  const darkModeToggle = document.querySelector('.quick-settings-section [data-setting="dark-mode"] input[type="checkbox"]');
+  const toolbarToggle = document.querySelector('.quick-settings-section [data-setting="enable-toolbar"] input[type="checkbox"]');
   const clearQuoteBtn = document.getElementById('clear-quote');
+  const cameraBtn = document.getElementById('camera-btn');
 
   const defaultStyles = {
-    solid: '#F28B82', 
-    line: '#FBBC04',  
-    dash: '#A7FFEB',  
-    wavy: '#D7AEFB'   
+    solid: '#fa7cef',
+    line: '#ff0000',
+    dash: '#ff0000',
+    wavy: '#ff0000'
   };
 
   const defaultVisibility = {
@@ -33,7 +34,17 @@ document.addEventListener('DOMContentLoaded', () => {
   
   let currentStyleConfig = { ...defaultStyles };
   let currentVisibility = { ...defaultVisibility };
-  let activeStyleType = null;
+  let toolbarConfig = [];
+
+  const AVAILABLE_TOOLS = [
+    { type: 'solid', label: 'Highlight', icon: 'icon-solid' },
+    { type: 'line', label: 'Underline', icon: 'icon-line' },
+    { type: 'dash', label: 'Dashed', icon: 'icon-dash' },
+    { type: 'wavy', label: 'Wavy', icon: 'icon-iocn_wavyLine' }
+  ];
+  let defaultStyleType = 'solid';
+  let isDarkMode = false;
+  let isToolbarEnabled = true;
 
   let currentDraft = null;
   let currentTabId = null;
@@ -47,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearQuoteBtn.addEventListener('click', () => {
       quoteText.textContent = '';
       quoteSection.classList.add('hidden');
+      quoteText.classList.remove('has-image');
       if (currentDraft) {
         currentDraft.text = null;
         currentDraft.range = null;
@@ -56,10 +68,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Settings Logic
-  settingsBtn.addEventListener('click', () => {
-    settingsDialog.classList.remove('hidden');
-    colorPickerPopup.classList.add('hidden');
-    loadSettings();
+  if (settingsBtn && settingsDialog) {
+    settingsBtn.addEventListener('click', () => {
+      settingsDialog.classList.remove('hidden');
+    });
+  }
+
+  // Shortcut for Save
+  noteInput.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      saveNote();
+    }
   });
 
   closeSettingsBtn.addEventListener('click', () => {
@@ -73,209 +93,142 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Preset Colors
-  presetColors.forEach(preset => {
-    preset.addEventListener('click', () => {
-      if (!activeStyleType) return;
-      const color = preset.dataset.color;
-      updateStyleColor(activeStyleType, color);
+  if (darkModeToggle) {
+    darkModeToggle.addEventListener('change', async (e) => {
+      isDarkMode = e.target.checked;
+      applyDarkMode();
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'DB_SET_SETTING',
+          payload: { key: 'sidepanelDarkMode', value: isDarkMode }
+        });
+      } catch (err) {
+        console.error('Failed to save dark mode setting', err);
+      }
     });
-  });
-
-  // Custom Color Input
-  customColorInput.addEventListener('input', (e) => {
-    if (!activeStyleType) return;
-    updateStyleColor(activeStyleType, e.target.value);
-  });
-
-  async function updateStyleColor(styleType, color) {
-    currentStyleConfig[styleType] = color;
-    
-    // Update color circle in UI immediately
-    const circle = document.querySelector(`.setting-row[data-style="${styleType}"] .color-circle`);
-    if (circle) circle.style.backgroundColor = color;
-    
-    // Update custom input if needed
-    if (customColorInput.value !== color) customColorInput.value = color;
-    
-    renderToolbarPreview();
-    await chrome.storage.local.set({ styleConfig: currentStyleConfig });
   }
 
-  async function updateVisibility(styleType, isVisible) {
-    currentVisibility[styleType] = isVisible;
-    
-    // Update color circle state
-    const row = document.querySelector(`.setting-row[data-style="${styleType}"]`);
-    if (row) {
-        const circle = row.querySelector('.color-circle');
-        if (circle) {
-            if (isVisible) circle.classList.remove('disabled');
-            else circle.classList.add('disabled');
+  if (toolbarToggle) {
+    toolbarToggle.addEventListener('change', async (e) => {
+      isToolbarEnabled = e.target.checked;
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'DB_SET_SETTING',
+          payload: { key: 'toolbarEnabled', value: isToolbarEnabled }
+        });
+        if (currentTabId) {
+          chrome.tabs.sendMessage(currentTabId, {
+            type: 'TOOLBAR_VISIBILITY_CHANGED',
+            enabled: isToolbarEnabled
+          });
         }
+      } catch (err) {
+        console.error('Failed to save toolbar enabled setting', err);
+      }
+    });
+  }
+
+  function applyDarkMode() {
+    if (isDarkMode) {
+      body.classList.add('dark-mode');
+    } else {
+      body.classList.remove('dark-mode');
     }
-    
-    renderToolbarPreview();
-    await chrome.storage.local.set({ toolVisibility: currentVisibility });
   }
 
   async function loadSettings() {
-    const result = await chrome.storage.local.get(['styleConfig', 'toolVisibility']);
-    currentStyleConfig = result.styleConfig || { ...defaultStyles };
+    // Load Toolbar Config
+    const configResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'toolbarConfig' });
+    
+    // Load Legacy Settings (for migration or fallback)
+    const styleResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'styleConfig' });
+    const visibilityResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'toolVisibility' });
+    const defaultStyleResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'defaultStyle' });
+    const darkModeResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'sidepanelDarkMode' });
+    const toolbarEnabledResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'toolbarEnabled' });
+
+    currentStyleConfig = (styleResp && styleResp.data) || { ...defaultStyles };
     
     // Ensure all keys exist
     ['solid', 'line', 'dash', 'wavy'].forEach(key => {
       if (!currentStyleConfig[key]) currentStyleConfig[key] = defaultStyles[key];
     });
 
-    currentVisibility = result.toolVisibility || { ...defaultVisibility };
-     // Ensure all keys exist
+    currentVisibility = (visibilityResp && visibilityResp.data) || { ...defaultVisibility };
+    // Ensure all keys exist
     ['solid', 'line', 'dash', 'wavy'].forEach(key => {
       if (currentVisibility[key] === undefined) currentVisibility[key] = defaultVisibility[key];
     });
 
-    renderSettingsUI();
-  }
+    defaultStyleType = defaultStyleResp && defaultStyleResp.data ? defaultStyleResp.data : 'solid';
+    if (toolbarEnabledResp && toolbarEnabledResp.data !== null && toolbarEnabledResp.data !== undefined) {
+      isToolbarEnabled = !!toolbarEnabledResp.data;
+    } else {
+      isToolbarEnabled = true;
+    }
+    isDarkMode = !!(darkModeResp && darkModeResp.data);
+    applyDarkMode();
+    if (darkModeToggle) {
+      darkModeToggle.checked = isDarkMode;
+    }
+    if (toolbarToggle) {
+      toolbarToggle.checked = isToolbarEnabled;
+    }
 
-  function renderSettingsUI() {
-    const listContainer = document.getElementById('settings-list');
-    listContainer.innerHTML = '';
-
-    const tools = [
-        { type: 'annotation', label: 'Annotation', icon: 'icon-edit', fixed: true },
-        { type: 'solid', label: 'Highlight', icon: 'icon-solid' },
-        { type: 'line', label: 'Underline', icon: 'icon-line' },
-        { type: 'dash', label: 'Dashed', icon: 'icon-dash' },
-        { type: 'wavy', label: 'Wavy', icon: 'icon-iocn_wavyLine' }
-    ];
-
-    tools.forEach(tool => {
-        const row = document.createElement('div');
-        row.className = 'setting-row';
-        row.dataset.style = tool.type;
-
-        // Info: Icon + Label
-        const info = document.createElement('div');
-        info.className = 'setting-info';
-        
-        const icon = document.createElement('span');
-        icon.className = `iconfont ${tool.icon} setting-icon`;
-        info.appendChild(icon);
-
-        const label = document.createElement('span');
-        label.className = 'setting-label';
-        label.textContent = tool.label;
-        info.appendChild(label);
-
-        if (tool.fixed) {
-            const badge = document.createElement('span');
-            badge.className = 'tag-badge';
-            badge.textContent = 'Required';
-            info.appendChild(badge);
-        }
-
-        row.appendChild(info);
-
-        // Controls: Toggle + Color
-        const controls = document.createElement('div');
-        controls.className = 'setting-controls';
-
-        // Toggle Switch (or fixed text)
-        if (tool.fixed) {
-             const switchLabel = document.createElement('label');
-             switchLabel.className = 'toggle-switch';
-             const input = document.createElement('input');
-             input.type = 'checkbox';
-             input.checked = true;
-             input.disabled = true;
-             const slider = document.createElement('span');
-             slider.className = 'slider';
-             switchLabel.appendChild(input);
-             switchLabel.appendChild(slider);
-             controls.appendChild(switchLabel);
-        } else {
-             const switchLabel = document.createElement('label');
-             switchLabel.className = 'toggle-switch';
-             const input = document.createElement('input');
-             input.type = 'checkbox';
-             input.checked = currentVisibility[tool.type];
-             input.addEventListener('change', (e) => {
-                 updateVisibility(tool.type, e.target.checked);
-             });
-             const slider = document.createElement('span');
-             slider.className = 'slider';
-             switchLabel.appendChild(input);
-             switchLabel.appendChild(slider);
-             controls.appendChild(switchLabel);
-
-             // Color Circle
-             const colorCircle = document.createElement('div');
-             colorCircle.className = 'color-circle';
-             if (!currentVisibility[tool.type]) colorCircle.classList.add('disabled');
-             colorCircle.style.backgroundColor = currentStyleConfig[tool.type];
-             
-             colorCircle.addEventListener('click', (e) => {
-                 e.stopPropagation();
-                 if (colorCircle.classList.contains('disabled')) return;
-                 openColorPicker(tool.type, row);
-             });
-             
-             controls.appendChild(colorCircle);
-        }
-
-        row.appendChild(controls);
-        listContainer.appendChild(row);
-    });
-    renderToolbarPreview();
-  }
-
-  function renderToolbarPreview() {
-    const container = document.getElementById('settings-toolbar-preview');
-    if (!container) return;
-    container.innerHTML = '';
-
-    // Set CSS variables for colors
-    container.style.setProperty('--na-color-solid', currentStyleConfig.solid);
-    container.style.setProperty('--na-color-line', currentStyleConfig.line);
-    container.style.setProperty('--na-color-dash', currentStyleConfig.dash);
-    container.style.setProperty('--na-color-wavy', currentStyleConfig.wavy);
-
-    const tools = [
-       
-        { type: 'solid', icon: 'icon-solid' },
-        { type: 'line', icon: 'icon-line' },
-        { type: 'dash', icon: 'icon-dash' },
-        { type: 'wavy', icon: 'icon-iocn_wavyLine' },
-        { type: 'annotation', icon: 'icon-edit', fixed: true }
-    ];
-
-    tools.forEach(tool => {
-        if (tool.fixed || currentVisibility[tool.type]) {
-            const btn = document.createElement('button');
-            btn.className = `na-float-btn na-style-${tool.type}`;
-            
-            const icon = document.createElement('span');
-            icon.className = `iconfont ${tool.icon}`;
-            btn.appendChild(icon);
-            
-            container.appendChild(btn);
-        }
-    });
-  }
-
-  function openColorPicker(type, rowElement) {
-      activeStyleType = type;
-      colorPickerPopup.classList.remove('hidden');
+    if (configResp && configResp.data) {
+      toolbarConfig = configResp.data;
       
-      customColorInput.value = currentStyleConfig[type];
+      // Ensure Annotation is last (Fix for existing configs)
+      const annotationIndex = toolbarConfig.findIndex(i => i.type === 'annotation');
+      if (annotationIndex !== -1 && annotationIndex !== toolbarConfig.length - 1) {
+          const annotationItem = toolbarConfig.splice(annotationIndex, 1)[0];
+          toolbarConfig.push(annotationItem);
+          saveToolbarConfig(); // Save the fix
+      }
+    } else {
+      // Migration: Build initial toolbarConfig from legacy settings
+      toolbarConfig = [];
       
-      // Visual feedback
-      document.querySelectorAll('.setting-row').forEach(r => r.style.backgroundColor = '');
-      rowElement.style.backgroundColor = '#f1f3f4';
+      AVAILABLE_TOOLS.forEach(tool => {
+        if (currentVisibility[tool.type] !== false) {
+          toolbarConfig.push({
+            id: crypto.randomUUID(),
+            type: tool.type,
+            color: currentStyleConfig[tool.type]
+          });
+        }
+      });
+
+      // Add Annotation at the end
+      toolbarConfig.push({ id: 'annotation', type: 'annotation', fixed: true });
+      
+      // Save the migrated config
+      saveToolbarConfig();
+    }
+
+    // Initial load doesn't render settings UI anymore, it's done on open
   }
+
+  async function saveToolbarConfig() {
+    await chrome.runtime.sendMessage({
+      type: 'DB_SET_SETTING',
+      payload: { key: 'toolbarConfig', value: toolbarConfig }
+    });
+    
+    // Notify content script to update
+    if (currentTabId) {
+        chrome.tabs.sendMessage(currentTabId, { type: 'CONFIG_UPDATED' });
+    }
+  }
+
 
   // Save button click handler
   saveBtn.addEventListener('click', saveNote);
+  
+  // Camera button click handler
+  if (cameraBtn) {
+    cameraBtn.addEventListener('click', onCameraClick);
+  }
 
   // Allow saving with Ctrl+Enter
   noteInput.addEventListener('keydown', (e) => {
@@ -290,16 +243,50 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Listen for storage changes
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local') {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'IMAGE_PROCESSING_STARTED') {
+      quoteSection.classList.remove('hidden');
+      quoteText.innerHTML = '<div class="loading-spinner"></div><span>Processing image...</span>';
+      quoteText.classList.remove('has-image');
+      quoteText.classList.add('loading-state');
+    }
+
+    if (message.type === 'ADD_IMAGE_TO_FOOTPRINTS') {
+      const { imageUrl, pageUrl, srcUrl } = message.payload;
+      
+      // Update UI
+      quoteSection.classList.remove('hidden');
+      quoteText.textContent = ''; 
+      quoteText.classList.remove('loading-state'); // Remove loading state 
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.className = 'quote-image';
+      quoteText.appendChild(img);
+      quoteText.classList.add('has-image');
+      
+      currentDraft = {
+        image: imageUrl,
+        srcUrl: srcUrl,
+        url: pageUrl,
+        style: defaultStyleType 
+      };
+      
+      noteInput.focus();
+    }
+
+    if (message.type === 'DATA_CHANGED') {
+      const changes = message.changes || {};
       if (changes.tempDraft) {
         checkTempDraft();
       }
       if (changes.notes) {
         // Only refresh if we have a URL context
         if (currentTabUrl) {
-          renderList(changes.notes.newValue || []);
+          loadRecentNotes(); // Reload notes from DB
         }
+      }
+      if (changes.toolbarConfig || changes.defaultStyle) {
+        loadSettings();
       }
     }
   });
@@ -363,11 +350,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function checkTempDraft() {
-    const result = await chrome.storage.local.get(['tempDraft']);
-    if (result.tempDraft && result.tempDraft.url === currentTabUrl) {
-      currentDraft = result.tempDraft;
+    const result = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'tempDraft' });
+    const tempDraft = result && result.data;
+    
+    if (tempDraft && tempDraft.url === currentTabUrl) {
+      currentDraft = tempDraft;
       
-      quoteText.textContent = currentDraft.text;
+      quoteText.textContent = currentDraft.text || '';
+      if (currentDraft.image) {
+        const img = document.createElement('img');
+        img.src = currentDraft.image;
+        img.className = 'quote-image';
+        quoteText.appendChild(img);
+        quoteText.classList.add('has-image');
+      } else {
+        quoteText.classList.remove('has-image');
+      }
+      
       quoteSection.classList.remove('hidden');
       // Scroll to top to ensure input is visible
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -381,56 +380,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function saveNote() {
     const text = noteInput.value.trim();
-    // Allow saving if there is text OR if we are updating an existing note (even if clearing text, though that's weird)
-    // But mainly we want to ensure we have context
-    if (!text && !currentDraft) return;
-    if (!text && (!currentDraft || !currentDraft.text)) return;
+    // Allow saving if there is text OR if we have a valid draft (text or image)
+    if (!text && (!currentDraft || (!currentDraft.text && !currentDraft.image))) return;
 
-    const result = await chrome.storage.local.get(['notes']);
-    let notes = result.notes || [];
+    const notesResp = await chrome.runtime.sendMessage({ type: 'DB_GET_NOTES' });
+    let notes = (notesResp && notesResp.data) || [];
 
     if (currentDraft && currentDraft.noteId) {
       // Update existing note
       const existingIndex = notes.findIndex(n => n.id === currentDraft.noteId);
       if (existingIndex !== -1) {
-        notes[existingIndex].content = text;
-        notes[existingIndex].updatedAt = new Date().toISOString();
+        const noteToUpdate = notes[existingIndex];
+        noteToUpdate.content = text;
+        noteToUpdate.updatedAt = new Date().toISOString();
+        
+        await chrome.runtime.sendMessage({
+          type: 'DB_ADD_NOTE',
+          payload: noteToUpdate
+        });
       } else {
         // Fallback: create new if not found
+        // Get annotation color and style from current settings
+        const annotationConfig = toolbarConfig.find(item => item.type === 'annotation');
+        const noteColor = annotationConfig ? annotationConfig.color : '#ff0000';
+        const noteStyle = defaultStyleType || 'solid';
+
         const newNote = {
           id: currentDraft.noteId,
           content: text,
           createdAt: new Date().toISOString(),
           quote: currentDraft.text,
           url: currentDraft.url,
-          range: currentDraft.range
+          range: currentDraft.range,
+          style: noteStyle,
+          color: noteColor
         };
-        notes.unshift(newNote);
+        await chrome.runtime.sendMessage({
+          type: 'DB_ADD_NOTE',
+          payload: newNote
+        });
       }
     } else {
       // Create new note
-      const style = currentDraft && currentDraft.style ? currentDraft.style : 'solid';
-      const color = currentStyleConfig[style] || defaultStyles[style];
+      const annotationConfig = toolbarConfig.find(item => item.type === 'annotation');
+      const style = currentDraft && currentDraft.style ? currentDraft.style : (defaultStyleType || 'solid');
+      const color = annotationConfig ? annotationConfig.color : '#ff0000';
 
       const newNote = {
         id: Date.now(),
         content: text,
         createdAt: new Date().toISOString(),
         quote: currentDraft ? currentDraft.text : null,
+        image: currentDraft ? currentDraft.image : null,
+        imageSrc: currentDraft ? currentDraft.srcUrl : null,
         url: currentDraft ? currentDraft.url : (currentTabUrl || 'unknown'),
         range: currentDraft ? currentDraft.range : null,
         style: style,
-        color: color
+        color: color,
+        screenshotRect: currentDraft && currentDraft.screenshotRect ? currentDraft.screenshotRect : null
       };
-      notes.unshift(newNote);
+      await chrome.runtime.sendMessage({
+        type: 'DB_ADD_NOTE',
+        payload: newNote
+      });
     }
 
-    await chrome.storage.local.set({ notes: notes, tempDraft: null });
+    await chrome.runtime.sendMessage({
+      type: 'DB_SET_SETTING',
+      payload: { key: 'tempDraft', value: null }
+    });
 
     noteInput.value = '';
     currentDraft = null;
     quoteSection.classList.add('hidden');
     quoteText.textContent = '';
+    quoteText.classList.remove('has-image');
     
     if (currentTabId) {
       chrome.tabs.sendMessage(currentTabId, {
@@ -439,11 +463,85 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function onCameraClick() {
+    if (!currentTabId) return;
+
+    try {
+      const rect = await chrome.tabs.sendMessage(currentTabId, {
+        type: 'START_SCREENSHOT_SELECTION'
+      });
+
+      if (rect) {
+        handleScreenshot(rect);
+      }
+    } catch (e) {
+      console.error('Screenshot failed:', e);
+    }
+  }
+
+  async function handleScreenshot(rect) {
+    const dataUrl = await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
+    if (!dataUrl) {
+      console.error("Failed to capture tab. Check permissions.");
+      return;
+    }
+
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      const dpr = rect.devicePixelRatio || 1;
+      
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(image, 
+        rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr,
+        0, 0, rect.width * dpr, rect.height * dpr
+      );
+      
+      const croppedUrl = canvas.toDataURL('image/png');
+      
+      // Update UI
+      quoteSection.classList.remove('hidden');
+      quoteText.textContent = ''; 
+      const img = document.createElement('img');
+      img.src = croppedUrl;
+      img.className = 'quote-image';
+      quoteText.appendChild(img);
+      quoteText.classList.add('has-image');
+      
+      const screenshotRect = rect ? {
+        top: rect.docTop != null ? rect.docTop : rect.top,
+        left: rect.docLeft != null ? rect.docLeft : rect.left,
+        width: rect.width,
+        height: rect.height
+      } : null;
+
+      currentDraft = {
+        image: croppedUrl,
+        url: currentTabUrl,
+        style: defaultStyleType,
+        screenshotRect: screenshotRect
+      };
+
+      if (currentTabId && screenshotRect) {
+        chrome.tabs.sendMessage(currentTabId, {
+          type: 'SHOW_SCREENSHOT_OVERLAY',
+          rect: screenshotRect
+        });
+      }
+      
+      noteInput.focus();
+    };
+    image.src = dataUrl;
+  }
+
   async function loadRecentNotes() {
     if (!currentTabUrl) return;
     
-    const result = await chrome.storage.local.get(['notes']);
-    const notes = result.notes || [];
+    const result = await chrome.runtime.sendMessage({ type: 'DB_GET_NOTES' });
+    const notes = (result && result.data) || [];
     renderList(notes);
   }
 
@@ -467,13 +565,17 @@ document.addEventListener('DOMContentLoaded', () => {
     pageNotes.forEach(n => {
       let key;
       // If no range and no quote, it's a plain text note that should NOT be merged
-      if (!n.range && (!n.quote || n.quote.trim() === '')) {
+      if (!n.range && (!n.quote || n.quote.trim() === '') && !n.image) {
         key = `unique-note-${n.id}`;
       } else {
-        key = n.range ? JSON.stringify(n.range) : `quote:${(n.quote || '').trim()}`;
+        if (n.image) {
+          key = n.imageSrc ? `image-src:${n.imageSrc}` : `image-note-${n.id}`;
+        } else {
+          key = n.range ? JSON.stringify(n.range) : `quote:${(n.quote || '').trim()}`;
+        }
       }
       
-      if (!groups[key]) groups[key] = { quote: n.quote || '', range: n.range || null, items: [] };
+      if (!groups[key]) groups[key] = { quote: n.quote || '', image: n.image || null, range: n.range || null, items: [] };
       groups[key].items.push(n);
     });
     
@@ -481,13 +583,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const li = document.createElement('li');
       li.className = 'timeline-item';
       
-      const hasReference = group.quote || group.range;
+      const hasReference = group.quote || group.range || group.image;
 
-      // 1. Note Quote (Clickable)
-      if (group.quote) {
+      // 1. Note Quote (Clickable) or Image
+      if (group.image) {
+        const img = document.createElement('img');
+        img.src = group.image;
+        img.className = 'quote-image';
+        img.style.marginBottom = '8px';
+        li.appendChild(img);
+      } else if (group.quote) {
         const quoteDiv = document.createElement('div');
         quoteDiv.className = 'note-quote';
-        quoteDiv.textContent = `"${group.quote}"`;
+        quoteDiv.textContent = group.quote;
         quoteDiv.title = 'Click to locate';
         // Use the first note's ID for location (or range if supported)
         const noteIdToLocate = group.items[0] ? group.items[0].id : null;
@@ -527,7 +635,12 @@ document.addEventListener('DOMContentLoaded', () => {
           deleteBtn.className = 'btn-icon btn-delete';
           deleteBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
           deleteBtn.title = 'Delete Note';
-          deleteBtn.onclick = () => deleteNote(item.id);
+          deleteBtn.onclick = async () => {
+             await chrome.runtime.sendMessage({
+               type: 'DB_DELETE_NOTE',
+               payload: item.id
+             });
+          };
           metaDiv.appendChild(deleteBtn);
           
           itemLi.appendChild(metaDiv);
@@ -580,8 +693,17 @@ document.addEventListener('DOMContentLoaded', () => {
         addBtn.innerHTML = '<span class="iconfont icon-edit"></span>';
         addBtn.title = 'Add Footprint';
         addBtn.onclick = async () => {
-          const payload = { text: group.quote, url: currentTabUrl, range: group.range };
-          await chrome.storage.local.set({ tempDraft: payload });
+          const payload = { 
+            text: group.quote, 
+            url: currentTabUrl, 
+            range: group.range,
+            image: group.image,
+            srcUrl: group.items[0] ? group.items[0].imageSrc : null
+          };
+          await chrome.runtime.sendMessage({
+            type: 'DB_SET_SETTING',
+            payload: { key: 'tempDraft', value: payload }
+          });
           checkTempDraft();
         };
         buttonsDiv.appendChild(addBtn);
@@ -591,6 +713,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const deleteGroupBtn = document.createElement('button');
       deleteGroupBtn.className = 'btn-icon btn-delete';
       deleteGroupBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
+      deleteGroupBtn.title = 'Delete All';
+      deleteGroupBtn.onclick = async () => {
+        if (confirm('Delete all footprints for this quote?')) {
+          for (const item of group.items) {
+             await chrome.runtime.sendMessage({
+               type: 'DB_DELETE_NOTE',
+               payload: item.id
+             });
+          }
+        }
+      };
+      actionsDiv.appendChild(deleteGroupBtn);
       deleteGroupBtn.title = 'Delete Entire Footprint';
       
       deleteGroupBtn.onclick = async (e) => {
@@ -620,20 +754,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function deleteGroup(groupItems) {
-    // Confirmation handled by UI tooltip
-    
-    const result = await chrome.storage.local.get(['notes']);
-    let notes = result.notes || [];
-    
-    const idsToDelete = new Set(groupItems.map(item => item.id));
-    notes = notes.filter(n => !idsToDelete.has(n.id));
-    
-    await chrome.storage.local.set({ notes: notes });
+    for (const item of groupItems) {
+      await chrome.runtime.sendMessage({
+        type: 'DB_DELETE_NOTE',
+        payload: item.id
+      });
+    }
   }
 
   async function deleteNote(noteId) {
-    const result = await chrome.storage.local.get(['notes']);
-    let notes = result.notes || [];
+    const result = await chrome.runtime.sendMessage({ type: 'DB_GET_NOTES' });
+    let notes = (result && result.data) || [];
     const target = notes.find(n => n.id === noteId);
     let preview = '';
     if (target) {
@@ -642,9 +773,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const ok = confirm(preview ? `Delete annotation ‘${preview}’ ?` : 'Delete this note?');
     if (!ok) return;
-    notes = notes.filter(n => n.id !== noteId);
     
-    await chrome.storage.local.set({ notes: notes });
+    await chrome.runtime.sendMessage({
+      type: 'DB_DELETE_NOTE',
+      payload: noteId
+    });
   }
 
   function locateNote(noteId) {

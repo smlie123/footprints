@@ -20,6 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const menuExportBtn = document.getElementById('menu-export');
   const menuImportBtn = document.getElementById('menu-import');
   const menuAboutBtn = document.getElementById('menu-about');
+  const menuExportPdfBtn = document.getElementById('menu-export-pdf');
+  const pdfDialog = document.getElementById('pdf-dialog');
+  const closePdfBtn = document.getElementById('close-pdf');
+  const pdfStartDateEl = document.getElementById('pdf-start-date');
+  const pdfEndDateEl = document.getElementById('pdf-end-date');
+  const pdfWebsiteSelect = document.getElementById('pdf-website');
+  const pdfPreviewBtn = document.getElementById('pdf-preview');
+  const pdfHistoryLinkBtn = document.getElementById('pdf-history-link');
+  const pdfHistoryDialog = document.getElementById('pdf-history-dialog');
+  const closePdfHistoryBtn = document.getElementById('close-pdf-history');
+  const pdfHistoryList = document.getElementById('pdf-history-list');
 
   const viewTimelineBtn = document.getElementById('view-timeline');
   const viewMasonryBtn = document.getElementById('view-masonry');
@@ -38,6 +49,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const calYearSelect = document.getElementById('cal-year');
   const calMonthSelect = document.getElementById('cal-month');
   const calGridEl = document.getElementById('cal-grid');
+  const searchHeaderEl = document.getElementById('search-header');
+  const searchTitleEl = document.getElementById('search-title');
+  const searchCountEl = document.getElementById('search-count');
+  const timelineHeaderEl = document.querySelector('.timeline-header');
+  const masonryControlsEl = document.getElementById('masonry-controls');
+  const masonryCategoryInfoEl = document.getElementById('masonry-category-info');
+  const sortLabelEl = document.querySelector('.sort-label');
+  const timelineContainerEl = document.querySelector('.timeline-container');
+  const sortTimeBtn = document.getElementById('sort-time');
+  const sortRandomBtn = document.getElementById('sort-random');
 
   let allNotes = [];
   let rangeStart = null;
@@ -50,29 +71,65 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentView = 'timeline';
   let selectedCategory = 'All';
   let pendingAddContext = null;
+  let sortMode = 'time';
+  let masonryPageSize = 16;
+  let masonryGroups = [];
+  let masonryRendered = 0;
+  let masonryScrollHandler = null;
 
   setDefaultTodayRange();
   initCalendarControls();
+  initDataTip();
   initViewToggles();
   initThoughtModal();
+  initImagePreview();
   initSidebar();
   initMenuAndDialogs();
   loadAllNotes();
 
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.notes) {
-      allNotes = changes.notes.newValue || [];
-      noteCountsByDay = buildNoteCountsByDay(allNotes);
-      renderCalendar();
-      renderList();
+  // Global ESC to close dialogs
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.dialog').forEach(d => {
+        if (!d.classList.contains('hidden')) {
+          d.classList.add('hidden');
+        }
+      });
     }
   });
 
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'DATA_CHANGED') {
+      if (message.changes.notes) {
+        loadAllNotes();
+      }
+    }
+  });
+
+  function initDataTip() {
+    const tip = document.getElementById('data-tip');
+    const close = document.getElementById('close-data-tip');
+    if (!tip || !close) return;
+
+    const closed = localStorage.getItem('dataTipClosed');
+    if (closed === '1') {
+      tip.classList.add('hidden');
+    } else {
+      tip.classList.remove('hidden');
+    }
+
+    close.addEventListener('click', () => {
+      tip.classList.add('hidden');
+      localStorage.setItem('dataTipClosed', '1');
+    });
+  }
+
   async function loadAllNotes() {
-    const result = await chrome.storage.local.get(['notes']);
-    allNotes = result.notes || [];
+    const response = await chrome.runtime.sendMessage({ type: 'DB_GET_NOTES' });
+    allNotes = (response && response.data) ? response.data : [];
     noteCountsByDay = buildNoteCountsByDay(allNotes);
     renderCalendar();
+    if (currentView === 'masonry') renderCategories();
     renderList();
   }
 
@@ -149,6 +206,21 @@ document.addEventListener('DOMContentLoaded', () => {
     viewMasonryBtn?.addEventListener('click', () => setView('masonry'));
   }
 
+  sortTimeBtn?.addEventListener('click', () => {
+    sortMode = 'time';
+    sortTimeBtn.classList.add('active');
+    sortRandomBtn?.classList.remove('active');
+     sortLabelEl?.classList.add('active');
+    renderList();
+  });
+  sortRandomBtn?.addEventListener('click', () => {
+    sortMode = 'random';
+    sortRandomBtn.classList.add('active');
+    sortTimeBtn?.classList.remove('active');
+     sortLabelEl?.classList.add('active');
+    renderList();
+  });
+
   function initThoughtModal() {
     const viewThoughtBtn = document.getElementById('view-thought');
     const thoughtDialog = document.getElementById('thought-dialog');
@@ -175,8 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Load preference
-    chrome.storage.local.get(['thoughtTheme'], (result) => {
-        if (result.thoughtTheme === 'dark') {
+    chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'thoughtTheme' }).then(response => {
+        if (response && response.data === 'dark') {
             toggleTheme(true);
         }
     });
@@ -184,7 +256,10 @@ document.addEventListener('DOMContentLoaded', () => {
     thoughtThemeToggle?.addEventListener('click', () => {
         const isDark = thoughtDialog.classList.contains('dark-mode');
         toggleTheme(!isDark);
-        chrome.storage.local.set({ thoughtTheme: !isDark ? 'dark' : 'light' });
+        chrome.runtime.sendMessage({ 
+            type: 'DB_SET_SETTING', 
+            payload: { key: 'thoughtTheme', value: !isDark ? 'dark' : 'light' }
+        });
     });
 
     let currentThoughtGroup = null;
@@ -261,13 +336,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm('Are you sure you want to delete this thought?')) return;
 
         // Remove from storage
-        const result = await chrome.storage.local.get(['notes']);
-        let notes = result.notes || [];
-        notes = notes.filter(n => n.id !== commentId);
-        await chrome.storage.local.set({ notes });
+        await chrome.runtime.sendMessage({
+            type: 'DB_DELETE_NOTE',
+            payload: commentId
+        });
 
-        // Update local state
-        allNotes = notes;
+        // Update local state (Optimistic or wait for reload? 
+        // Since we have loadAllNotes on message, we might get a refresh.
+        // But for UI responsiveness in modal, we update local list.)
+        allNotes = allNotes.filter(n => n.id !== commentId);
         if (currentThoughtGroup) {
             currentThoughtGroup.items = currentThoughtGroup.items.filter(item => item.id !== commentId);
         }
@@ -281,37 +358,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = (thoughtCommentInput?.value || '').trim();
         if (!text || !currentThoughtGroup) return;
 
+        const baseItem = (currentThoughtGroup.items && currentThoughtGroup.items[0]) || {};
+
         const newNote = {
           id: Date.now(),
           content: text,
           createdAt: new Date().toISOString(),
-          quote: currentThoughtGroup.quote || thoughtTextEl.textContent.replace(/^"|"$/g, ''), // Use displayed text as quote reference if needed
+          quote: currentThoughtGroup.quote || thoughtTextEl.textContent.replace(/^"|"$/g, ''),
           url: currentThoughtGroup.url || '',
-          range: currentThoughtGroup.range || null
+          range: currentThoughtGroup.range || null,
+          style: baseItem.style,
+          color: baseItem.color
         };
         
-        // Save
-        const result = await chrome.storage.local.get(['notes']);
-        const notes = result.notes || [];
-        notes.unshift(newNote);
-        await chrome.storage.local.set({ notes });
+        await chrome.runtime.sendMessage({
+            type: 'DB_ADD_NOTE',
+            payload: newNote
+        });
         
-        // Update local state
-        allNotes = notes; // Ideally we wait for listener, but for immediate UI feedback:
+        allNotes.unshift(newNote);
         currentThoughtGroup.items.push(newNote);
         
-        // Clear input
         thoughtCommentInput.value = '';
         
-        // Re-render list
         renderCommentsList();
         
-        // Update comment count button
-        const count = currentThoughtGroup.items.filter(i => i.content && i.content.trim()).length;
-        // Note: if standalone, we might need to adjust count logic to match display
-        // But simpler is just to re-render the whole thought or update the button text.
-        // Let's update the specific button if possible, or just re-render meta.
-        // Since we don't have ref to button easily, let's just re-render meta (it's fast).
         renderMeta();
     };
     
@@ -334,11 +405,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const infoIcon = document.createElement('div');
         infoIcon.className = 'thought-info-icon';
         infoIcon.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="16" x2="12" y2="12"></line>
-                <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
+            <span class="iconfont icon-thought_fill"></span>
+            <span class="thought-info-label">Roaming</span>
             <div class="thought-tooltip">Some thoughts are worth meeting again, even after time has moved on.</div>
         `;
         thoughtMetaEl.appendChild(infoIcon);
@@ -398,6 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Change Button
         const changeBtn = document.createElement('button');
         changeBtn.className = 'thought-btn';
+        changeBtn.title = 'You can also press Space to change';
         changeBtn.innerHTML = '<span class="iconfont icon-sync"></span> Change';
         changeBtn.onclick = () => {
             renderRandomThought();
@@ -463,12 +532,23 @@ document.addEventListener('DOMContentLoaded', () => {
       renderMeta();
     };
 
+    const handleSpaceForChange = (e) => {
+      if (e.key === ' ' || e.code === 'Space') {
+        if (!thoughtDialog.classList.contains('active')) return;
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+        e.preventDefault();
+        renderRandomThought();
+      }
+    };
+
     const openModal = () => {
       renderRandomThought();
       thoughtDialog.classList.remove('hidden');
       // Force reflow
       void thoughtDialog.offsetWidth;
       thoughtDialog.classList.add('active');
+      document.addEventListener('keydown', handleSpaceForChange, true);
     };
 
     const closeModal = () => {
@@ -476,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         thoughtDialog.classList.add('hidden');
       }, 300); // Match transition duration
+      document.removeEventListener('keydown', handleSpaceForChange, true);
     };
 
     viewThoughtBtn.addEventListener('click', openModal);
@@ -497,20 +578,41 @@ document.addEventListener('DOMContentLoaded', () => {
     viewTimelineBtn?.classList.toggle('active', view === 'timeline');
     viewMasonryBtn?.classList.toggle('active', view === 'masonry');
 
-    // Update Layout
     document.body.classList.toggle('masonry-view', view === 'masonry');
 
-    // Update Sidebar
     if (view === 'masonry') {
       sidebarCalendar?.classList.add('hidden');
       sidebarCategories?.classList.remove('hidden');
       renderCategories();
+      masonryControlsEl?.classList.remove('hidden');
     } else {
       sidebarCalendar?.classList.remove('hidden');
       sidebarCategories?.classList.add('hidden');
+      masonryControlsEl?.classList.add('hidden');
     }
 
     renderList();
+  }
+
+  function groupNotes(notes) {
+    const groups = {};
+    notes.forEach(n => {
+      let key;
+      if (!n.range && (!n.quote || n.quote.trim() === '') && !n.image) {
+        key = `unique-note-${n.id}`;
+      } else {
+        if (n.image) {
+          key = `image-note-${n.id}`;
+        } else {
+          key = n.range ? `${JSON.stringify(n.range)}:${n.url || ''}` : `quote:${(n.quote || '').trim()}:${n.url || ''}`;
+        }
+      }
+      if (!groups[key]) {
+        groups[key] = { quote: n.quote || '', range: n.range || null, url: n.url || '', image: n.image || null, items: [] };
+      }
+      groups[key].items.push(n);
+    });
+    return Object.values(groups);
   }
 
   function renderCategories() {
@@ -519,15 +621,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const counts = new Map();
     counts.set('All', 0);
 
-    allNotes.forEach(note => {
+    const groups = groupNotes(allNotes);
+    groups.forEach(group => {
       counts.set('All', counts.get('All') + 1);
       let domain = 'Unknown';
       try {
-        if (note.url) {
-          const urlObj = new URL(note.url);
+        if (group.url) {
+          const urlObj = new URL(group.url);
           domain = urlObj.hostname;
         }
       } catch (e) {}
+      if (!domain) domain = 'Unknown';
       counts.set(domain, (counts.get(domain) || 0) + 1);
     });
 
@@ -540,6 +644,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     sortedCats.unshift('All');
 
+    if (masonryCategoryInfoEl) {
+      const displayCat = selectedCategory === 'Unknown' ? '--' : selectedCategory;
+      const count = counts.get(selectedCategory) || 0;
+      masonryCategoryInfoEl.textContent = `${displayCat} (${count})`;
+    }
+
     categoryListEl.innerHTML = '';
     sortedCats.forEach(cat => {
       const count = counts.get(cat);
@@ -548,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cat === selectedCategory) li.classList.add('active');
       
       const nameSpan = document.createElement('span');
-      nameSpan.textContent = cat;
+      nameSpan.textContent = cat === 'Unknown' ? '--' : cat;
       const countSpan = document.createElement('span');
       countSpan.className = 'nav-count';
       countSpan.textContent = count;
@@ -601,15 +711,105 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 150);
       });
     }
+
+    const sidebarMenu = document.getElementById('sidebar-menu');
+    const sidebarMenuBtn = document.getElementById('sidebar-menu-btn');
+    sidebarMenuBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sidebarMenu?.classList.toggle('is-open');
+    });
+    document.addEventListener('mousedown', (e) => {
+      if (sidebarMenu?.classList.contains('is-open') && !sidebarMenu.contains(e.target)) {
+        sidebarMenu.classList.remove('is-open');
+      }
+    });
   }
 
   function initMenuAndDialogs() {
+    const sidebarMenu = document.getElementById('sidebar-menu');
+    const exportHistoryList = document.getElementById('export-history-list');
+
+    const formatBytes = (n) => {
+      const k = 1024;
+      if (n < k) return `${n} B`;
+      const sizes = ['KB', 'MB', 'GB'];
+      let i = -1;
+      let v = n;
+      do {
+        v /= k;
+        i++;
+      } while (v >= k && i < sizes.length - 1);
+      return `${v.toFixed(2)} ${sizes[i]}`;
+    };
+
+    const renderExportHistory = async () => {
+      if (!exportHistoryList) return;
+      exportHistoryList.innerHTML = '';
+      const response = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'exportHistory' });
+      const list = (response && response.data && Array.isArray(response.data)) ? response.data : [];
+      if (!list.length) {
+        const empty = document.createElement('div');
+        empty.className = 'export-history-empty';
+        empty.textContent = 'No export records yet.';
+        exportHistoryList.appendChild(empty);
+        return;
+      }
+      list.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'export-history-item';
+        const main = document.createElement('div');
+        main.className = 'export-history-main';
+        const dt = document.createElement('span');
+        const d = new Date(item.createdAt);
+        dt.textContent = Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+        const size = document.createElement('span');
+        size.textContent = formatBytes(item.bytes || 0);
+        main.appendChild(dt);
+        main.appendChild(size);
+        const sub = document.createElement('div');
+        sub.className = 'export-history-sub';
+        sub.textContent = `Notes: ${item.count || 0}`;
+        row.appendChild(main);
+        row.appendChild(sub);
+        exportHistoryList.appendChild(row);
+      });
+    };
+
     menuExportBtn?.addEventListener('click', async () => {
+      sidebarMenu?.classList.remove('is-open');
       if (!exportDialog) return;
-      const data = await chrome.storage.local.get(null);
-      const json = JSON.stringify(data, null, 2);
-      if (exportTextEl) exportTextEl.value = json;
+      // History is now in a separate dialog
       exportDialog.classList.remove('hidden');
+    });
+
+    const openExportHistoryBtn = document.getElementById('open-export-history');
+    const exportHistoryDialog = document.getElementById('export-history-dialog');
+    const closeExportHistoryBtn = document.getElementById('close-export-history');
+
+    openExportHistoryBtn?.addEventListener('click', async () => {
+        await renderExportHistory();
+        exportHistoryDialog?.classList.remove('hidden');
+    });
+
+    closeExportHistoryBtn?.addEventListener('click', () => exportHistoryDialog?.classList.add('hidden'));
+    exportHistoryDialog?.addEventListener('click', (e) => {
+        if (e.target === exportHistoryDialog) exportHistoryDialog.classList.add('hidden');
+    });
+
+    const menuSettingsBtn = document.getElementById('menu-settings');
+    menuSettingsBtn?.addEventListener('click', () => {
+      sidebarMenu?.classList.remove('is-open');
+      if (chrome.runtime.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      } else {
+        window.open(chrome.runtime.getURL('options.html'));
+      }
+    });
+
+    const menuHowToUseBtn = document.getElementById('menu-howtouse');
+    menuHowToUseBtn?.addEventListener('click', () => {
+      sidebarMenu?.classList.remove('is-open');
+      chrome.tabs.create({ url: 'howtouse.html' });
     });
 
     closeExportBtn?.addEventListener('click', () => exportDialog?.classList.add('hidden'));
@@ -617,22 +817,184 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target === exportDialog) exportDialog.classList.add('hidden');
     });
 
+    const getHostname = (urlStr) => {
+      try {
+        const host = new URL(urlStr).hostname;
+        return host || '--';
+      } catch {
+        return '--';
+      }
+    };
+    const uniqueWebsites = () => {
+      const set = new Set();
+      allNotes.forEach(n => {
+        const host = getHostname(n.url || '');
+        if (host) set.add(host);
+      });
+      return Array.from(set).sort();
+    };
+    const renderPdfWebsites = () => {
+      if (!pdfWebsiteSelect) return;
+      const sites = uniqueWebsites();
+      pdfWebsiteSelect.innerHTML = '<option value=\"\">All</option>' + sites.map(s => `<option value="${s}">${s}</option>`).join('');
+    };
+    const renderPdfHistory = async () => {
+      if (!pdfHistoryList) return;
+      pdfHistoryList.innerHTML = '';
+      const response = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'pdfExportHistory' });
+      const list = (response && response.data && Array.isArray(response.data)) ? response.data : [];
+      if (!list.length) {
+        const empty = document.createElement('div');
+        empty.className = 'export-history-empty';
+        empty.textContent = 'No export records yet.';
+        pdfHistoryList.appendChild(empty);
+        return;
+      }
+      list.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = 'export-history-item';
+        const main = document.createElement('div');
+        main.className = 'export-history-main';
+        const dt = document.createElement('span');
+        const d = new Date(item.createdAt);
+        dt.textContent = Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+        const size = document.createElement('span');
+        size.textContent = `${item.count || 0} items`;
+        main.appendChild(dt);
+        main.appendChild(size);
+        const sub = document.createElement('div');
+        sub.className = 'export-history-sub';
+        sub.textContent = `Time: ${item.start || '—'} ~ ${item.end || '—'}  •  Site: ${item.site || 'All'}`;
+        const del = document.createElement('button');
+        del.textContent = 'Delete';
+        del.style.cssText = 'background:none;border:1px solid #eee;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;margin-left:8px;';
+        del.addEventListener('click', async () => {
+          const sResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'pdfExportHistory' });
+          const arr = (sResp && sResp.data && Array.isArray(sResp.data)) ? sResp.data : [];
+          arr.splice(idx, 1);
+          await chrome.runtime.sendMessage({ type: 'DB_SET_SETTING', payload: { key: 'pdfExportHistory', value: arr } });
+          renderPdfHistory();
+        });
+        sub.appendChild(del);
+        row.appendChild(main);
+        row.appendChild(sub);
+        pdfHistoryList.appendChild(row);
+      });
+    };
+    const computePdfFilter = () => {
+      const startStr = pdfStartDateEl?.value || '';
+      const endStr = pdfEndDateEl?.value || '';
+      const site = pdfWebsiteSelect?.value || '';
+      const start = startStr ? new Date(startStr + 'T00:00:00') : null;
+      const end = endStr ? new Date(endStr + 'T23:59:59') : null;
+      let filtered = allNotes;
+      if (start || end) {
+        filtered = filtered.filter(n => {
+          const t = new Date(n.createdAt).getTime();
+          const okStart = start ? t >= start.getTime() : true;
+          const okEnd = end ? t <= end.getTime() : true;
+          return okStart && okEnd;
+        });
+      }
+      if (site) {
+        filtered = filtered.filter(n => getHostname(n.url) === site);
+      }
+      return { filtered, startStr, endStr, site };
+    };
+
+    menuExportPdfBtn?.addEventListener('click', async () => {
+      sidebarMenu?.classList.remove('is-open');
+      renderPdfWebsites();
+      pdfDialog?.classList.remove('hidden');
+    });
+    closePdfBtn?.addEventListener('click', () => pdfDialog?.classList.add('hidden'));
+    
+    // Click to show picker
+    const triggerPicker = (el) => {
+      try {
+        if (el && typeof el.showPicker === 'function') el.showPicker();
+      } catch (e) {}
+    };
+    pdfStartDateEl?.addEventListener('click', (e) => {
+      e.preventDefault();
+      triggerPicker(pdfStartDateEl);
+    });
+    pdfEndDateEl?.addEventListener('click', (e) => {
+      e.preventDefault();
+      triggerPicker(pdfEndDateEl);
+    });
+
+    pdfDialog?.addEventListener('click', (e) => { if (e.target === pdfDialog) pdfDialog.classList.add('hidden'); });
+    pdfHistoryLinkBtn?.addEventListener('click', async () => {
+      await renderPdfHistory();
+      pdfHistoryDialog?.classList.remove('hidden');
+    });
+    closePdfHistoryBtn?.addEventListener('click', () => pdfHistoryDialog?.classList.add('hidden'));
+    pdfHistoryDialog?.addEventListener('click', (e) => {
+      if (e.target === pdfHistoryDialog) pdfHistoryDialog.classList.add('hidden');
+    });
+    pdfPreviewBtn?.addEventListener('click', async () => {
+      const data = computePdfFilter();
+      // Save config for the preview page
+      await chrome.runtime.sendMessage({ 
+        type: 'DB_SET_SETTING',
+        payload: {
+            key: 'pdfExportConfig',
+            value: {
+                startStr: data.startStr,
+                endStr: data.endStr,
+                site: data.site
+            }
+        } 
+      });
+      // Open new tab
+      const url = chrome.runtime.getURL('pdf-preview.html');
+      chrome.tabs.create({ url });
+    });
+    // Removed old preview dialog logic
+    // closePdfPreviewBtn?.addEventListener('click', ...);
+    // pdfExportBtn?.addEventListener('click', ...);
     downloadExportBtn?.addEventListener('click', async () => {
-      const data = await chrome.storage.local.get(null);
+      const response = await chrome.runtime.sendMessage({ type: 'DB_GET_ALL_DATA' });
+      const data = (response && response.data) ? response.data : {};
+      
+      const notes = Array.isArray(data.notes) ? data.notes : [];
       const json = JSON.stringify(data, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const dayKey = toDayKey(new Date());
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      const stamp = `${y}${m}${d}-${hh}${mm}${ss}`;
       a.href = url;
-      a.download = `footprints-backup-${dayKey}.json`;
+      a.download = `footprints-backup-${stamp}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+
+      try {
+        const bytes = new TextEncoder().encode(json).length;
+        const histResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'exportHistory' });
+        const list = (histResp && histResp.data && Array.isArray(histResp.data)) ? histResp.data : [];
+        list.unshift({
+          createdAt: now.toISOString(),
+          count: notes.length,
+          bytes
+        });
+        if (list.length > 10) list.length = 10;
+        await chrome.runtime.sendMessage({ type: 'DB_SET_SETTING', payload: { key: 'exportHistory', value: list } });
+        await renderExportHistory();
+      } catch {}
     });
 
     menuImportBtn?.addEventListener('click', () => {
+      sidebarMenu?.classList.remove('is-open');
       pendingImportData = null;
       if (importFileEl) importFileEl.value = '';
       if (importStatusEl) importStatusEl.textContent = '';
@@ -668,13 +1030,45 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       if (!confirm('This will overwrite current data with the backup. Continue?')) return;
-      await chrome.storage.local.clear();
-      await chrome.storage.local.set(pendingImportData);
+      
+      await chrome.runtime.sendMessage({ type: 'DB_CLEAR_ALL' });
+      await chrome.runtime.sendMessage({ type: 'DB_IMPORT_DATA', payload: pendingImportData });
+      
       importDialog?.classList.add('hidden');
       await loadAllNotes();
     });
 
-    menuAboutBtn?.addEventListener('click', () => aboutDialog?.classList.remove('hidden'));
+    menuAboutBtn?.addEventListener('click', async () => {
+      sidebarMenu?.classList.remove('is-open');
+      const verEl = document.getElementById('about-version');
+      const countEl = document.getElementById('about-count');
+      const sizeEl = document.getElementById('about-size');
+      try {
+        const manifest = chrome.runtime.getManifest();
+        if (verEl) verEl.textContent = `v${manifest.version || ''}`;
+      } catch {}
+      try {
+        const response = await chrome.runtime.sendMessage({ type: 'DB_GET_ALL_DATA' });
+        const data = (response && response.data) ? response.data : {};
+        const notes = Array.isArray(data.notes) ? data.notes : [];
+        if (countEl) countEl.textContent = String(notes.length);
+        const text = JSON.stringify(data);
+        const bytes = new TextEncoder().encode(text).length;
+        const fmt = (n) => {
+          const k = 1024;
+          if (n < k) return `${n} B`;
+          const sizes = ['KB','MB','GB'];
+          let i = -1, v = n;
+          do { v /= k; i++; } while (v >= k && i < sizes.length - 1);
+          return `${v.toFixed(2)} ${sizes[i]}`;
+        };
+        if (sizeEl) sizeEl.textContent = fmt(bytes);
+      } catch {
+        if (countEl) countEl.textContent = '–';
+        if (sizeEl) sizeEl.textContent = '–';
+      }
+      aboutDialog?.classList.remove('hidden');
+    });
     closeAboutBtn?.addEventListener('click', () => aboutDialog?.classList.add('hidden'));
     aboutDialog?.addEventListener('click', (e) => {
       if (e.target === aboutDialog) aboutDialog.classList.add('hidden');
@@ -689,21 +1083,85 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!pendingAddContext) { addNoteDialog?.classList.add('hidden'); return; }
       const text = (addNoteTextEl?.value || '').trim();
       if (!text) { addNoteDialog?.classList.add('hidden'); return; }
-      const result = await chrome.storage.local.get(['notes']);
-      const notes = result.notes || [];
       const newNote = {
         id: Date.now(),
         content: text,
         createdAt: new Date().toISOString(),
         quote: pendingAddContext.quote || null,
         url: pendingAddContext.url || '',
-        range: pendingAddContext.range || null
+        range: pendingAddContext.range || null,
+        style: pendingAddContext.style,
+        color: pendingAddContext.color
       };
-      notes.unshift(newNote);
-      await chrome.storage.local.set({ notes });
+      await chrome.runtime.sendMessage({
+        type: 'DB_ADD_NOTE',
+        payload: newNote
+      });
       addNoteDialog?.classList.add('hidden');
       pendingAddContext = null;
       if (addNoteTextEl) addNoteTextEl.value = '';
+    });
+
+    // Helper to open Add Note Dialog with preview
+    window.openAddNoteWithPreview = (context) => {
+        pendingAddContext = context;
+        if (addNoteDialog && addNoteTextEl) {
+            const preview = document.getElementById('add-note-preview');
+            const previewQuote = document.getElementById('add-note-preview-quote');
+            const previewImg = document.getElementById('add-note-preview-img');
+            
+            // Determine what to show
+            // The `context` comes from `group` in renderList. 
+            // `group.quote` is text, `group.image` is image URL if available.
+            
+            const hasQuote = context.quote && context.quote.trim();
+            const hasImage = context.image;
+            
+            if (hasImage) {
+                preview.classList.remove('hidden');
+                previewImg.src = context.image;
+                previewImg.classList.remove('hidden');
+                previewQuote.classList.add('hidden');
+            } else if (hasQuote) {
+                preview.classList.remove('hidden');
+                previewQuote.textContent = context.quote;
+                previewQuote.classList.remove('hidden');
+                previewImg.classList.add('hidden');
+            } else {
+                preview.classList.add('hidden');
+            }
+            
+            addNoteTextEl.value = '';
+            addNoteDialog.classList.remove('hidden');
+            addNoteTextEl.focus();
+        }
+    };
+  }
+
+  function initImagePreview() {
+    const dialog = document.getElementById('image-preview-dialog');
+    const closeBtn = document.getElementById('close-image-preview');
+    const previewImg = document.getElementById('preview-image');
+    
+    if (!dialog || !closeBtn || !previewImg) return;
+
+    // Use event delegation for dynamically added images
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('quote-image')) {
+        previewImg.src = e.target.src;
+        dialog.classList.remove('hidden');
+      }
+    });
+
+    closeBtn.addEventListener('click', () => {
+      dialog.classList.add('hidden');
+    });
+    
+    // Clicking outside image (on the container) closes the dialog
+    dialog.addEventListener('click', (e) => {
+      if (e.target.classList.contains('image-preview-container')) {
+        dialog.classList.add('hidden');
+      }
     });
   }
 
@@ -814,11 +1272,21 @@ document.addEventListener('DOMContentLoaded', () => {
       filtered = searchQuery ? filterBySearch(allNotes, searchQuery) : filterByRange(allNotes, rangeStart, rangeEnd);
     }
 
-    const sorted = [...filtered].sort((a, b) => {
-      const ta = new Date(a.createdAt).getTime();
-      const tb = new Date(b.createdAt).getTime();
-      return tb - ta;
-    });
+    let sorted = [...filtered];
+    if (currentView === 'masonry' && sortMode === 'random') {
+      for (let i = sorted.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = sorted[i];
+        sorted[i] = sorted[j];
+        sorted[j] = tmp;
+      }
+    } else {
+      sorted.sort((a, b) => {
+        const ta = new Date(a.createdAt).getTime();
+        const tb = new Date(b.createdAt).getTime();
+        return tb - ta;
+      });
+    }
 
     if (!sorted.length) {
       emptyStateEl.classList.remove('hidden');
@@ -843,40 +1311,194 @@ document.addEventListener('DOMContentLoaded', () => {
       timelineCountEl.textContent = searchQuery ? `Found ${sorted.length} footprints` : `Added ${sorted.length} footprints`;
     }
     
-    if (currentView !== 'masonry') {
-      if (searchQuery) {
-        timelineDateEl.textContent = `Search: ${searchQuery}`;
-      } else {
+    if (searchHeaderEl && searchTitleEl && searchCountEl && timelineHeaderEl) {
+      const searching = !!searchQuery;
+      searchHeaderEl.classList.toggle('hidden', !searching);
+      timelineHeaderEl.classList.toggle('hidden', searching);
+      if (searching) {
+        searchTitleEl.textContent = `Search: ${searchQuery}`;
+        searchCountEl.textContent = `Found ${sorted.length} results`;
+      } else if (currentView !== 'masonry') {
         updateHeader(rangeStart, rangeEnd);
       }
     }
 
-    const groups = {};
-    sorted.forEach(n => {
-      let key;
-      if (!n.range && (!n.quote || n.quote.trim() === '')) {
-        key = `unique-note-${n.id}`;
-      } else {
-        key = n.range ? JSON.stringify(n.range) : `quote:${(n.quote || '').trim()}:${n.url || ''}`;
+    const groupsArr = groupNotes(sorted);
+    if (currentView === 'masonry') {
+      masonryGroups = groupsArr;
+      masonryRendered = 0;
+      timelineListEl.innerHTML = '';
+      const appendChunk = () => {
+        if (!masonryGroups.length) return;
+        const end = Math.min(masonryRendered + masonryPageSize, masonryGroups.length);
+        const frag = document.createDocumentFragment();
+        for (let idx = masonryRendered; idx < end; idx++) {
+          const group = masonryGroups[idx];
+          const li = document.createElement('li');
+          li.className = 'timeline-item';
+          const hasReference = group.quote || group.range || group.image;
+          
+          // 1. Note Quote (always show full content) or Image
+          if (group.image) {
+            const imgDiv = document.createElement('div');
+            imgDiv.className = 'note-img';
+            const img = document.createElement('img');
+            img.src = group.image;
+            img.className = 'quote-image';
+            img.style.maxWidth = '100%';
+            img.style.borderRadius = '4px';
+            imgDiv.appendChild(img);
+            li.appendChild(imgDiv);
+          } else if (group.quote) {
+            const quoteDiv = document.createElement('div');
+            quoteDiv.className = 'note-quote';
+            quoteDiv.textContent = group.quote;
+            li.appendChild(quoteDiv);
+          }
+          const listEl = document.createElement('ul');
+          listEl.className = 'note-items';
+          group.items.forEach(item => {
+            if (!item.content || !item.content.trim()) return;
+            const itemLi = document.createElement('li');
+            itemLi.className = 'note-item';
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'note-content';
+            contentDiv.textContent = item.content;
+            itemLi.appendChild(contentDiv);
+            if (hasReference) {
+              const metaDiv = document.createElement('div');
+              metaDiv.className = 'note-meta';
+              const dateSpan = document.createElement('span');
+              dateSpan.className = 'note-date';
+              dateSpan.textContent = new Date(item.createdAt).toLocaleString();
+              metaDiv.appendChild(dateSpan);
+              const deleteBtn = document.createElement('button');
+              deleteBtn.className = 'btn-icon btn-delete';
+              deleteBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
+              deleteBtn.title = 'Delete Note';
+              deleteBtn.onclick = () => deleteNote(item.id);
+              metaDiv.appendChild(deleteBtn);
+              itemLi.appendChild(metaDiv);
+            }
+            listEl.appendChild(itemLi);
+          });
+          li.appendChild(listEl);
+          const footerDiv = document.createElement('div');
+          footerDiv.className = 'note-item-footer';
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'note-actions';
+          const createTimeSpan = document.createElement('span');
+          createTimeSpan.className = 'group-create-time';
+          if (group.items.length > 0) {
+            createTimeSpan.textContent = new Date(group.items[0].createdAt).toLocaleString();
+          }
+          actionsDiv.appendChild(createTimeSpan);
+          const buttonsDiv = document.createElement('div');
+          buttonsDiv.className = 'note-action-buttons';
+          const locateBtn = document.createElement('button');
+          locateBtn.className = 'btn-icon btn-locate';
+          locateBtn.innerHTML = `<span class="iconfont icon-location" title="${group.url}"></span>`;
+          locateBtn.title = 'Locate on Page';
+          if (!group.url) {
+            locateBtn.disabled = true;
+            locateBtn.title = 'No web reference to locate';
+          } else {
+            locateBtn.onclick = () => locateNote({ id: group.items[0].id, url: group.url, range: group.range });
+          }
+          buttonsDiv.appendChild(locateBtn);
+          if (hasReference) {
+            const addBtn = document.createElement('button');
+            addBtn.className = 'btn-icon btn-add';
+            addBtn.innerHTML = '<span class="iconfont icon-edit"></span>';
+            addBtn.title = 'Add Annotation';
+            addBtn.onclick = () => {
+              const context = { 
+                quote: group.quote, 
+                url: group.url, 
+                range: group.range, 
+                image: group.image,
+                style: group.items[0] && group.items[0].style, 
+                color: group.items[0] && group.items[0].color 
+              };
+              if (window.openAddNoteWithPreview) {
+                window.openAddNoteWithPreview(context);
+              } else {
+                // Fallback if not initialized (should not happen)
+                pendingAddContext = context;
+                if (addNoteDialog && addNoteTextEl) {
+                  addNoteTextEl.value = '';
+                  addNoteDialog.classList.remove('hidden');
+                }
+              }
+            };
+            buttonsDiv.appendChild(addBtn);
+          }
+          const deleteGroupBtn = document.createElement('button');
+          deleteGroupBtn.className = 'btn-icon btn-delete';
+          deleteGroupBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
+          deleteGroupBtn.title = 'Delete Entire Footprint';
+          deleteGroupBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const annotationCount = group.items.filter(it => it.content && it.content.trim()).length;
+            let q = (group.quote || '').replace(/\s+/g, ' ').trim();
+            if (q && q.length > 16) q = q.slice(0, 16) + '...';
+            let message;
+            if (annotationCount === 0) {
+              message = q ? `Delete this footprint ‘${q}’ ?` : 'Delete this footprint ?';
+            } else {
+              message = q ? `Delete this footprint ‘${q}’ and its ${annotationCount} annotation?` : `Delete this footprint and its ${annotationCount} annotation?`;
+            }
+            const ok = confirm(message);
+            if (ok) {
+              await deleteGroup(group.items);
+            }
+          };
+          buttonsDiv.appendChild(deleteGroupBtn);
+          actionsDiv.appendChild(buttonsDiv);
+          footerDiv.appendChild(actionsDiv);
+          li.appendChild(footerDiv);
+          frag.appendChild(li);
+        }
+        timelineListEl.appendChild(frag);
+        masonryRendered = end;
+      };
+      appendChunk();
+      if (timelineContainerEl) {
+        if (masonryScrollHandler) {
+          timelineContainerEl.removeEventListener('scroll', masonryScrollHandler);
+        }
+        masonryScrollHandler = () => {
+          if (currentView !== 'masonry') return;
+          const nearBottom = timelineContainerEl.scrollTop + timelineContainerEl.clientHeight >= timelineContainerEl.scrollHeight - 80;
+          if (nearBottom && masonryRendered < masonryGroups.length) {
+            appendChunk();
+          }
+        };
+        timelineContainerEl.addEventListener('scroll', masonryScrollHandler);
       }
-      if (!groups[key]) groups[key] = { quote: n.quote || '', range: n.range || null, url: n.url || '', items: [] };
-      groups[key].items.push(n);
-    });
-    Object.values(groups).forEach(group => {
+      return;
+    }
+    groupsArr.forEach(group => {
       const li = document.createElement('li');
       li.className = 'timeline-item';
-      const hasReference = group.quote || group.range;
+      const hasReference = group.quote || group.range || group.image;
       
-      // 1. Note Quote (always show full content)
-      if (group.quote) {
+      // 1. Note Quote (always show full content) or Image
+      if (group.image) {
+        const imgDiv = document.createElement('div');
+        imgDiv.className = 'note-img';
+        const img = document.createElement('img');
+        img.src = group.image;
+        img.className = 'quote-image';
+        img.style.maxWidth = '100%';
+        img.style.borderRadius = '4px';
+        imgDiv.appendChild(img);
+        li.appendChild(imgDiv);
+      } else if (group.quote) {
         const quoteDiv = document.createElement('div');
         quoteDiv.className = 'note-quote';
-        quoteDiv.textContent = `"${group.quote}"`;
-        quoteDiv.title = 'Click to locate';
+        quoteDiv.textContent = group.quote;
         
-        if (group.url && group.items.length > 0) {
-            quoteDiv.onclick = () => locateNote({ id: group.items[0].id, url: group.url, range: group.range });
-        }
         li.appendChild(quoteDiv);
       }
 
@@ -955,10 +1577,22 @@ document.addEventListener('DOMContentLoaded', () => {
         addBtn.innerHTML = '<span class="iconfont icon-edit"></span>';
         addBtn.title = 'Add Annotation';
         addBtn.onclick = () => {
-          pendingAddContext = { quote: group.quote, url: group.url, range: group.range };
-          if (addNoteDialog && addNoteTextEl) {
-            addNoteTextEl.value = '';
-            addNoteDialog.classList.remove('hidden');
+          const context = { 
+            quote: group.quote, 
+            url: group.url, 
+            range: group.range, 
+            image: group.image,
+            style: group.items[0] && group.items[0].style, 
+            color: group.items[0] && group.items[0].color 
+          };
+          if (window.openAddNoteWithPreview) {
+            window.openAddNoteWithPreview(context);
+          } else {
+             pendingAddContext = context;
+             if (addNoteDialog && addNoteTextEl) {
+               addNoteTextEl.value = '';
+               addNoteDialog.classList.remove('hidden');
+             }
           }
         };
         buttonsDiv.appendChild(addBtn);
@@ -1028,10 +1662,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function deleteGroup(groupItems) {
+    for (const item of groupItems) {
+      await chrome.runtime.sendMessage({
+        type: 'DB_DELETE_NOTE',
+        payload: item.id
+      });
+    }
+  }
+
   async function deleteNote(noteId) {
-    const result = await chrome.storage.local.get(['notes']);
-    let notes = result.notes || [];
-    const target = notes.find(n => n.id === noteId);
+    const target = allNotes.find(n => n.id === noteId);
     let preview = '';
     if (target) {
       const base = (target.content || target.quote || '').replace(/\s+/g, ' ').trim();
@@ -1039,8 +1680,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const ok = confirm(preview ? `Delete annotation ‘${preview}’ ?` : 'Delete this note?');
     if (!ok) return;
-    notes = notes.filter(n => n.id !== noteId);
-    await chrome.storage.local.set({ notes: notes });
+    await chrome.runtime.sendMessage({ type: 'DB_DELETE_NOTE', payload: noteId });
   }
 
   function locateNote(note) {

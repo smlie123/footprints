@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Footprints - Every thought leaves a footprint.</title>
   <link rel="stylesheet" href="home.css">
-  <link rel="stylesheet" href="iconfont/iconfont.css">
+  <link rel="stylesheet" href="./iconfont/iconfont.css">
 </head>
 <body>
 
@@ -21,7 +21,7 @@
         <button id="view-timeline" class="view-btn active"><span class="iconfont icon-timeline"></span>&nbsp;Timeline</button>
         <button id="view-masonry" class="view-btn"><span class="iconfont icon-pubuliu"></span>&nbsp;Masonry</button>
       </div>
-      <button id="view-thought" class="view-btn" title="A thought from your past self"><span class="iconfont icon-footprints"></span></button>
+      <button id="view-thought" class="view-btn" title="A thought from your past self"><span class="iconfont icon-thought_fill"></span>&nbsp;Roaming</button>
     </div>
   </header>
 
@@ -29,50 +29,55 @@
     <aside class="sidebar">
       <div class="sidebar-top">
         <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar"><span class="iconfont icon-outdent" id="sidebar-toggle-icon"></span></button>
-        <div class="sidebar-title">Calendar</div>
+        
       </div>
 
       <div class="sidebar-search">
         <input id="sidebar-search-input" class="sidebar-search-input" type="search" placeholder="Search footprints...">
       </div>
 
-      <!-- Timeline Sidebar: Calendar -->
-      <div id="sidebar-calendar" class="calendar-card">
-        <div class="calendar-header">
-        <button id="cal-prev" class="cal-nav-btn" aria-label="Previous month"><span class="iconfont icon-left"></span></button>
-          <div class="calendar-selects">
-            <select id="cal-year" class="cal-select" aria-label="Year"></select>
-            <select id="cal-month" class="cal-select" aria-label="Month"></select>
+      <div class="sidebar-content">
+        <!-- Timeline Sidebar: Calendar -->
+        <div id="sidebar-calendar" class="calendar-card">
+          <div class="calendar-header">
+          <button id="cal-prev" class="cal-nav-btn" aria-label="Previous month"><span class="iconfont icon-left"></span></button>
+            <div class="calendar-selects">
+              <select id="cal-year" class="cal-select" aria-label="Year"></select>
+              <select id="cal-month" class="cal-select" aria-label="Month"></select>
+            </div>
+            <button id="cal-next" class="cal-nav-btn" aria-label="Next month"><span class="iconfont icon-right"></span></button>
           </div>
-          <button id="cal-next" class="cal-nav-btn" aria-label="Next month"><span class="iconfont icon-right"></span></button>
+          <div class="calendar-weekdays" id="cal-weekdays">
+            <div class="cal-weekday">Mon</div>
+            <div class="cal-weekday">Tue</div>
+            <div class="cal-weekday">Wed</div>
+            <div class="cal-weekday">Thu</div>
+            <div class="cal-weekday">Fri</div>
+            <div class="cal-weekday">Sat</div>
+            <div class="cal-weekday">Sun</div>
+          </div>
+          <div class="calendar-grid" id="cal-grid"></div>
         </div>
-        <div class="calendar-weekdays" id="cal-weekdays">
-          <div class="cal-weekday">Mon</div>
-          <div class="cal-weekday">Tue</div>
-          <div class="cal-weekday">Wed</div>
-          <div class="cal-weekday">Thu</div>
-          <div class="cal-weekday">Fri</div>
-          <div class="cal-weekday">Sat</div>
-          <div class="cal-weekday">Sun</div>
-        </div>
-        <div class="calendar-grid" id="cal-grid"></div>
-      </div>
 
-      <!-- Masonry Sidebar: Category List -->
-      <div id="sidebar-categories" class="sidebar-section hidden">
-        <div class="section-title">Categories</div>
-        <ul id="category-list" class="nav-list">
-          <!-- Categories injected here -->
-        </ul>
+        <!-- Masonry Sidebar: Category List -->
+        <div id="sidebar-categories" class="sidebar-section hidden">
+          <div class="section-title">Categories</div>
+          <ul id="category-list" class="nav-list">
+            <!-- Categories injected here -->
+          </ul>
+        </div>
       </div>
 
       <div class="sidebar-footer">
         <div class="sidebar-menu" id="sidebar-menu">
-          <button id="sidebar-menu-btn" class="sidebar-menu-btn" aria-label="Menu"><span class="iconfont icon-menu"></span></button>
+          <button id="sidebar-menu-btn" class="sidebar-menu-btn" aria-label="Menu"><span class="iconfont icon-menu"></span><span class="sidebar-menu-text">Menu</span></button>
           <div class="sidebar-menu-dropdown" id="sidebar-menu-dropdown">
-            <button class="sidebar-menu-item" id="menu-export">Export Data (Backup)</button>
-            <button class="sidebar-menu-item" id="menu-import">Import Data (Restore)</button>
-            <button class="sidebar-menu-item" id="menu-about">About</button>
+            <button class="sidebar-menu-item" id="menu-export"><span class="iconfont icon-export"></span>Export Data (Backup)</button>
+            <button class="sidebar-menu-item" id="menu-import"><span class="iconfont icon-Import"></span>Import Data (Restore)</button>
+            <button class="sidebar-menu-item" id="menu-export-pdf"><span class="iconfont icon-file-pdf"></span>Export PDF</button>
+            <button class="sidebar-menu-item" id="menu-settings"><span class="iconfont icon-setting"></span>Settings</button>
+            <button class="sidebar-menu-item" id="menu-howtouse"><span class="iconfont icon-info-circle"></span>How to Use</button>
+            <button class="sidebar-menu-item" id="menu-about"><span class="iconfont icon-info-circle"></span>About</button>
           </div>
         </div>
       </div>
@@ -83,6 +88,27 @@
 
       <!-- Main Timeline Content -->
       <div class="timeline-container">
+        
+        <div id="data-tip" class="data-tip hidden">
+          <div class="data-tip-content">
+            <span class="iconfont icon-info-circle"></span>
+            <span>Your data is stored locally in this browser. Uninstalling the extension will clear it. Please backup frequently via <strong>Menu > Export Data</strong>.</span>
+          </div>
+          <button id="close-data-tip" class="close-data-tip" title="Dismiss">×</button>
+        </div>
+
+        <div id="search-header" class="search-header hidden">
+          <div id="search-title" class="search-title"></div>
+          <div id="search-count" class="search-count"></div>
+        </div>
+        <div class="masonry-controls hidden" id="masonry-controls">
+          <div id="masonry-category-info" class="masonry-category-info"></div>
+          <div class="masonry-sort-controls">
+            <span class="sort-label">Sort by:</span>
+            <button id="sort-time" class="sort-btn active">Time</button> / 
+            <button id="sort-random" class="sort-btn">Random</button>
+          </div>
+        </div>
         <div class="timeline-header">
           <div class="timeline-date" id="timeline-date"></div>
           <div class="timeline-day-switch">
@@ -106,9 +132,28 @@
         <h3>Export Data (Backup)</h3>
         <button id="close-export" class="close-btn">×</button>
       </div>
-      <textarea id="export-text" class="dialog-textarea" readonly></textarea>
-      <div class="dialog-actions">
+      <div class="dialog-copy">
+        <div class="dialog-copy-title">What will be exported</div>
+        <div class="dialog-copy-text">Your notes, highlights, and settings stored by Footprints will be saved into a JSON backup file.</div>
+        <div class="dialog-copy-title">Why backup and restore</div>
+        <div class="dialog-copy-text">Create backups before reinstalling the extension or switching devices, and use restore to bring your footprints back later.</div>
+      </div>
+      <div class="dialog-actions" style="justify-content: space-between;">
+        <button id="open-export-history" class="dialog-link-btn">Export history</button>
         <button id="download-export" class="confirm-btn">Download Backup</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="export-history-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>Export history</h3>
+        <button id="close-export-history" class="close-btn">×</button>
+      </div>
+      <div class="export-history">
+        <div class="export-history-header">Export history <span class="export-history-note">(Last 10 records)</span></div>
+        <div id="export-history-list" class="export-history-list"></div>
       </div>
     </div>
   </div>
@@ -119,6 +164,10 @@
         <h3>Import Data (Restore)</h3>
         <button id="close-import" class="close-btn">×</button>
       </div>
+      <div class="dialog-copy">
+        <div class="dialog-copy-title">Before you import</div>
+        <div class="dialog-copy-text">Importing a backup will overwrite your current data. Make sure you have exported a recent backup if you want to keep the existing footprints.</div>
+      </div>
       <input id="import-file" class="dialog-file" type="file" accept="application/json">
       <div id="import-status" class="dialog-status"></div>
       <div class="dialog-actions">
@@ -127,15 +176,139 @@
     </div>
   </div>
 
+  <div id="pdf-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>Export PDF</h3>
+        <button id="close-pdf" class="close-btn">×</button>
+      </div>
+      <div class="dialog-copy">
+        <div class="dialog-copy-title">Select dimensions</div>
+        <div class="dialog-copy-text">Filter by time range and website to generate a focused PDF.</div>
+      </div>
+      <div class="pdf-filters">
+        <div class="filter-row">
+          <label for="pdf-start-date">Time Range</label>
+          <div class="filter-inputs">
+            <input type="date" id="pdf-start-date">
+            <span class="filter-sep">—</span>
+            <input type="date" id="pdf-end-date">
+          </div>
+        </div>
+        <div class="filter-row">
+          <label for="pdf-website">Website</label>
+          <div class="filter-inputs">
+            <select id="pdf-website">
+              <option value="">All</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="pdf-history-link" class="dialog-link-btn">Export history</button>
+        <button id="pdf-preview" class="confirm-btn">Preview</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pdf-history-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>Export history</h3>
+        <button id="close-pdf-history" class="close-btn">×</button>
+      </div>
+      <div class="export-history">
+        <div class="export-history-header">Export history <span class="export-history-note">(Last 10 records)</span></div>
+        <div id="pdf-history-list" class="export-history-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="about-dialog" class="dialog hidden">
     <div class="dialog-content">
       <div class="dialog-header">
-        <h3>About</h3>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h3>About Footprints</h3>
+          <span id="about-version" class="version-badge">v1.0</span>
+        </div>
         <button id="close-about" class="close-btn">×</button>
       </div>
-      <div class="dialog-about">
-        <div class="dialog-about-title">Footprints</div>
-        <div class="dialog-about-text">Every thought leaves a footprint.</div>
+      <div class="dialog-scroll-area">
+        <div class="about-intro">
+          Footprints is a lightweight web annotation tool that helps you highlight text, add contextual notes, and record your thoughts directly on any webpage.<br>
+          All highlights and annotations are stored locally, always connected to their original context.
+        </div>
+
+        <div class="about-section">
+          <h4>Core Features</h4>
+          
+          <div class="feature-block">
+            <div class="feature-title">✍️ Highlight Text Your Way</div>
+            <ul class="feature-desc">
+              <li>Highlight, underline, dashed underline, or wavy underline</li>
+              <li>Customize colors for different meanings</li>
+              <li>Configure which annotation tools appear in the toolbar</li>
+            </ul>
+          </div>
+
+          <div class="feature-block">
+            <div class="feature-title">📝 Add Contextual Annotations</div>
+            <ul class="feature-desc">
+              <li>Select any text to open the Side Panel</li>
+              <li>Write annotations directly linked to the original content</li>
+              <li>Jump back to the exact position on the page with one click</li>
+            </ul>
+          </div>
+
+          <div class="feature-block">
+            <div class="feature-title">💭 Capture Thoughts Without Quoting</div>
+            <ul class="feature-desc">
+              <li>Record standalone thoughts without selecting text</li>
+              <li>Perfect for reflections, questions, and ideas triggered by reading</li>
+            </ul>
+          </div>
+
+          <div class="feature-block">
+            <div class="feature-title">📌 Side Panel Focused on the Current Page</div>
+            <ul class="feature-desc">
+              <li>View only highlights and notes related to the current URL</li>
+              <li>Clean structure: Referenced text, Annotation input, List of notes</li>
+            </ul>
+          </div>
+
+          <div class="feature-block">
+            <div class="feature-title">📚 Review Notes in Multiple Ways</div>
+            <ul class="feature-desc">
+              <li><strong>Timeline View</strong> – Review how many notes you made today</li>
+              <li><strong>Waterfall View</strong> – Browse all notes visually</li>
+              <li><strong>Roaming Mode</strong> – Randomly revisit past notes to resurface forgotten insights</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="about-section">
+          <h4>🔐 Privacy First</h4>
+          <ul>
+            <li>All highlights and notes are stored locally using IndexedDB</li>
+            <li>No accounts required</li>
+            <li>No data is uploaded to any server</li>
+          </ul>
+        </div>
+
+        <div class="about-section">
+          <h4>Perfect for</h4>
+          <ul>
+            <li>Reading long articles</li>
+            <li>Online learning and research</li>
+            <li>Thinking while browsing</li>
+            <li>Writers, developers, designers, and deep readers</li>
+          </ul>
+        </div>
+
+        <div class="about-footer">
+          <div class="about-slogan">Footprints doesn’t just save content — it preserves your thinking.</div>
+          <div class="about-sub-slogan">Start leaving meaningful traces across the web.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -145,6 +318,10 @@
       <div class="dialog-header">
         <h3>Add Annotation</h3>
         <button id="close-add-note" class="close-btn">×</button>
+      </div>
+      <div id="add-note-preview" class="dialog-preview hidden">
+        <div id="add-note-preview-quote" class="dialog-preview-quote"></div>
+        <img id="add-note-preview-img" class="dialog-preview-img hidden" src="" alt="Preview">
       </div>
       <textarea id="add-note-text" class="dialog-textarea" placeholder="Write your annotation..."></textarea>
       <div class="dialog-actions">
@@ -171,6 +348,13 @@
           <div id="thought-comments-list" class="thought-comments-list"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="image-preview-dialog" class="dialog full-screen hidden">
+    <button id="close-image-preview" class="close-btn-overlay">×</button>
+    <div class="image-preview-container">
+      <img id="preview-image" src="" alt="Full Preview">
     </div>
   </div>
 

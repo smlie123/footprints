@@ -36,10 +36,18 @@ style.textContent = `
 document.head.appendChild(style);
 
 let currentStyleConfig = {
-  solid: '#F28B82',
-  line: '#C62828',
-  dash: '#C62828',
-  wavy: '#C62828'
+  solid: '#fa7cef',
+  line: '#ff0000',
+  dash: '#ff0000',
+  wavy: '#ff0000'
+};
+let currentToolbarConfig = null;
+const TOOL_ICONS = {
+    solid: 'icon-solid',
+    line: 'icon-line',
+    dash: 'icon-dash',
+    wavy: 'icon-iocn_wavyLine',
+    annotation: 'icon-edit'
 };
 let currentToolVisibility = {
   solid: true,
@@ -49,28 +57,87 @@ let currentToolVisibility = {
   annotation: true
 };
 let cachedNotes = [];
+let toolbarEnabled = true;
 
-document.addEventListener('DOMContentLoaded', loadHighlights);
-loadHighlights();
+function scheduleInitialHighlights() {
+  loadHighlights();
+  setTimeout(loadHighlights, 1000);
+  setTimeout(loadHighlights, 3000);
+}
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local') {
-    if (changes.notes || changes.styleConfig || changes.toolVisibility) {
-      loadHighlights();
-    }
-  }
-});
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    scheduleInitialHighlights();
+    loadToolbarEnabled();
+  });
+} else {
+  scheduleInitialHighlights();
+  loadToolbarEnabled();
+}
 
-// Handle Scroll Request
+// Listen for messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SCROLL_TO_NOTE') {
     const noteId = message.noteId;
     scrollToNote(noteId);
   }
+  if (message.type === 'CONFIG_UPDATED') {
+    // Refresh configuration
+    chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'toolbarConfig' }).then(toolbarConfigResp => {
+        if (toolbarConfigResp && toolbarConfigResp.data) {
+            currentToolbarConfig = toolbarConfigResp.data;
+        }
+    });
+  }
+  if (message.type === 'TOOLBAR_VISIBILITY_CHANGED') {
+    if (typeof message.enabled === 'boolean') {
+      toolbarEnabled = message.enabled;
+      if (!toolbarEnabled) {
+        removeFloatingButton();
+      }
+    }
+  }
+  if (message.type === 'TOOLBAR_VISIBILITY_CHANGED') {
+    if (typeof message.enabled === 'boolean') {
+      toolbarEnabled = message.enabled;
+      if (!toolbarEnabled) {
+        removeFloatingButton();
+      }
+    }
+  }
   if (message.type === 'REFRESH_HIGHLIGHTS') {
     loadHighlights();
   }
+  if (message.type === 'DATA_CHANGED') {
+    const changes = message.changes || {};
+    if (changes.notes || changes.styleConfig || changes.toolVisibility) {
+      loadHighlights();
+    }
+  }
+  if (message.type === 'START_SCREENSHOT_SELECTION') {
+    initScreenshotSelection(sendResponse);
+    return true;
+  }
+  if (message.type === 'SHOW_SCREENSHOT_OVERLAY' && message.rect) {
+    showScreenshotOverlay(message.rect);
+  }
 });
+
+async function loadToolbarEnabled() {
+  try {
+    const resp = await chrome.runtime.sendMessage({
+      type: 'DB_GET_SETTING',
+      payload: 'toolbarEnabled'
+    });
+    if (resp && resp.data !== null && resp.data !== undefined) {
+      toolbarEnabled = !!resp.data;
+    } else {
+      toolbarEnabled = true;
+    }
+  } catch (e) {
+    toolbarEnabled = true;
+  }
+}
 
 document.addEventListener('mouseup', handleSelection);
 document.addEventListener('keyup', handleSelection);
@@ -87,6 +154,11 @@ function handleSelection(event) {
   setTimeout(() => {
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
+
+    if (!toolbarEnabled) {
+      removeFloatingButton();
+      return;
+    }
 
     if (!selectedText) {
       removeFloatingButton();
@@ -110,55 +182,97 @@ function createFloatingButton(range) {
   floatingBtn.id = 'note-anywhere-btn-container';
   floatingBtn.className = 'note-anywhere-ui';
   
-  const styles = [
-    { type: 'solid', icon: 'icon-solid' },
-    { type: 'line', icon: 'icon-line' },
-    { type: 'dash', icon: 'icon-dash' },
-    { type: 'wavy', icon: 'icon-iocn_wavyLine' }
-  ];
+  if (currentToolbarConfig) {
+      currentToolbarConfig.forEach(item => {
+          if (item.type === 'annotation') {
+              const editBtn = document.createElement('button');
+              editBtn.className = 'na-float-btn na-btn-add';
+              editBtn.addEventListener('mousedown', onAddNoteClick);
+              const editIcon = document.createElement('span');
+              editIcon.className = 'iconfont icon-edit';
+              editBtn.appendChild(editIcon);
+              floatingBtn.appendChild(editBtn);
+          } else {
+              const btn = document.createElement('button');
+              btn.className = `na-float-btn na-style-${item.type}`;
+              // Apply specific color to button icon if needed, or style it. 
+              // Existing CSS uses color property for icon color.
+              if (item.color) btn.style.color = item.color;
+              
+              btn.addEventListener('mousedown', (e) => onStyleClick(e, item.type, item.color));
+              
+              const icon = document.createElement('span');
+              const iconClass = TOOL_ICONS[item.type] || 'icon-solid';
+              icon.className = `iconfont ${iconClass}`;
+              btn.appendChild(icon);
+              floatingBtn.appendChild(btn);
+          }
+      });
+  } else {
+      // Legacy Logic
+      const styles = [
+        { type: 'solid', icon: 'icon-solid' },
+        { type: 'line', icon: 'icon-line' },
+        { type: 'dash', icon: 'icon-dash' },
+        { type: 'wavy', icon: 'icon-iocn_wavyLine' }
+      ];
 
-  styles.forEach(style => {
-    if (currentToolVisibility[style.type] === false) return;
+      styles.forEach(style => {
+        if (currentToolVisibility[style.type] === false) return;
 
-    const btn = document.createElement('button');
-    btn.className = `na-float-btn na-style-${style.type}`;
-    
-    // Add mousedown listener instead of click to prevent losing selection
-    btn.addEventListener('mousedown', (e) => onStyleClick(e, style.type));
-    
-    const icon = document.createElement('span');
-    icon.className = `iconfont ${style.icon}`;
-    btn.appendChild(icon);
-    floatingBtn.appendChild(btn);
-  });
+        const btn = document.createElement('button');
+        btn.className = `na-float-btn na-style-${style.type}`;
+        
+        // Legacy: use currentStyleConfig inside onStyleClick
+        btn.addEventListener('mousedown', (e) => onStyleClick(e, style.type));
+        
+        const icon = document.createElement('span');
+        icon.className = `iconfont ${style.icon}`;
+        btn.appendChild(icon);
+        floatingBtn.appendChild(btn);
+      });
 
-  // Edit Button
-  // Annotation tool is usually fixed, but check just in case
-  if (currentToolVisibility['annotation'] !== false) {
-    const editBtn = document.createElement('button');
-    editBtn.className = 'na-float-btn na-btn-add';
-    editBtn.addEventListener('mousedown', onAddNoteClick);
-    const editIcon = document.createElement('span');
-    editIcon.className = 'iconfont icon-edit';
-    editBtn.appendChild(editIcon);
-    floatingBtn.appendChild(editBtn);
+      // Edit Button
+      if (currentToolVisibility['annotation'] !== false) {
+        const editBtn = document.createElement('button');
+        editBtn.className = 'na-float-btn na-btn-add';
+        editBtn.addEventListener('mousedown', onAddNoteClick);
+        const editIcon = document.createElement('span');
+        editIcon.className = 'iconfont icon-edit';
+        editBtn.appendChild(editIcon);
+        floatingBtn.appendChild(editBtn);
+      }
   }
   
+  document.body.appendChild(floatingBtn);
+
   const rects = range.getClientRects();
-  if (rects.length > 0) {
-    const lastRect = rects[rects.length - 1];
-    const top = window.scrollY + lastRect.bottom + 8;
-    const left = window.scrollX + lastRect.right;
-    
-    floatingBtn.style.top = `${top}px`;
-    floatingBtn.style.left = `${left}px`;
-  } else {
-    const rect = range.getBoundingClientRect();
-    floatingBtn.style.top = `${window.scrollY + rect.bottom + 10}px`;
-    floatingBtn.style.left = `${window.scrollX + rect.right}px`;
+  const targetRect = rects.length > 0 ? rects[rects.length - 1] : range.getBoundingClientRect();
+
+  const btnRect = floatingBtn.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  // Calculate position relative to viewport first
+  let left = targetRect.right;
+  let top = targetRect.bottom + 10;
+
+  // Horizontal Check
+  if (left + btnRect.width > viewportWidth) {
+    left = viewportWidth - btnRect.width - 10;
+  }
+  if (left < 0) {
+    left = 10;
   }
 
-  document.body.appendChild(floatingBtn);
+  // Vertical Check
+  if (top + btnRect.height > viewportHeight) {
+    top = targetRect.top - btnRect.height - 10;
+  }
+
+  // Apply scroll offset for absolute positioning
+  floatingBtn.style.top = `${window.scrollY + top}px`;
+  floatingBtn.style.left = `${window.scrollX + left}px`;
 }
 
 function removeFloatingButton() {
@@ -168,7 +282,105 @@ function removeFloatingButton() {
   }
 }
 
-async function onStyleClick(e, styleType) {
+function initScreenshotSelection(sendResponse) {
+  // Create overlay
+  const overlay = document.createElement('div');
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    width: '100vw',
+    height: '100vh',
+    zIndex: '2147483647',
+    cursor: 'crosshair',
+    background: 'rgba(0,0,0,0.1)'
+  });
+  
+  // Selection Box
+  const selectionBox = document.createElement('div');
+  Object.assign(selectionBox.style, {
+    border: '2px solid #1a73e8',
+    background: 'rgba(26, 115, 232, 0.2)',
+    position: 'fixed',
+    display: 'none'
+  });
+  overlay.appendChild(selectionBox);
+
+  document.body.appendChild(overlay);
+
+  let startX, startY;
+  let isDragging = false;
+
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    selectionBox.style.left = startX + 'px';
+    selectionBox.style.top = startY + 'px';
+    selectionBox.style.width = '0px';
+    selectionBox.style.height = '0px';
+    selectionBox.style.display = 'block';
+  };
+
+  const onMouseMove = (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    
+    const width = Math.abs(currentX - startX);
+    const height = Math.abs(currentY - startY);
+    const left = Math.min(currentX, startX);
+    const top = Math.min(currentY, startY);
+
+    selectionBox.style.width = width + 'px';
+    selectionBox.style.height = height + 'px';
+    selectionBox.style.left = left + 'px';
+    selectionBox.style.top = top + 'px';
+  };
+
+  const onMouseUp = (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    const rect = selectionBox.getBoundingClientRect();
+    
+    // Cleanup
+    document.body.removeChild(overlay);
+    
+    if (rect.width > 10 && rect.height > 10) {
+       sendResponse({
+         left: rect.left,
+         top: rect.top,
+         width: rect.width,
+         height: rect.height,
+         devicePixelRatio: window.devicePixelRatio,
+         docLeft: rect.left + window.scrollX,
+         docTop: rect.top + window.scrollY
+       });
+    } else {
+       sendResponse(null); 
+    }
+  };
+  
+  // Esc to cancel
+  const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+          if (document.body.contains(overlay)) {
+            document.body.removeChild(overlay);
+            sendResponse(null);
+          }
+      }
+  };
+
+  overlay.addEventListener('mousedown', onMouseDown);
+  overlay.addEventListener('mousemove', onMouseMove);
+  overlay.addEventListener('mouseup', onMouseUp);
+  document.addEventListener('keydown', onKeyDown, {once: true});
+}
+
+async function onStyleClick(e, styleType, color) {
   e.preventDefault();
   e.stopPropagation();
 
@@ -184,13 +396,13 @@ async function onStyleClick(e, styleType) {
       url: window.location.href,
       range: serialized,
       style: styleType,
-      color: currentStyleConfig[styleType]
+      color: color || currentStyleConfig[styleType]
   };
 
-  const result = await chrome.storage.local.get(['notes']);
-  const notes = result.notes || [];
-  notes.unshift(newNote);
-  await chrome.storage.local.set({ notes: notes });
+  await chrome.runtime.sendMessage({
+    type: 'DB_ADD_NOTE',
+    payload: newNote
+  });
 
   selection.removeAllRanges();
   removeFloatingButton();
@@ -221,93 +433,108 @@ function onAddNoteClick(e) {
 // --- Highlight Rendering Logic ---
 
 async function loadHighlights() {
-  const result = await chrome.storage.local.get(['notes', 'styleConfig', 'toolVisibility']);
-  const notes = result.notes || [];
-  cachedNotes = notes;
-  const styleConfig = result.styleConfig || currentStyleConfig;
-  
-  if (result.toolVisibility) {
-    currentToolVisibility = result.toolVisibility;
-  }
-  
-  // Update global config and CSS variables
-  currentStyleConfig = styleConfig;
-  Object.keys(currentStyleConfig).forEach(style => {
-    document.documentElement.style.setProperty(`--na-color-${style}`, currentStyleConfig[style]);
-  });
+  try {
+    const notesResp = await chrome.runtime.sendMessage({ type: 'DB_GET_NOTES' });
+    const notes = (notesResp && notesResp.data) || [];
+    cachedNotes = notes;
 
-  const currentUrl = window.location.href;
-  const pageNotes = notes.filter(n => n.url === currentUrl && n.range);
-
-  // Group notes by range
-  const groupedNotes = {};
-  pageNotes.forEach(note => {
-    const rangeKey = JSON.stringify(note.range);
-    if (!groupedNotes[rangeKey]) {
-      groupedNotes[rangeKey] = [];
-    }
-    groupedNotes[rangeKey].push(note);
-  });
-
-  // Prepare normalized groups with sorted ID sets
-  const groups = Object.values(groupedNotes).map(group => {
-    const ids = group.map(n => n.id);
-    const norm = normalizeIds(ids);
-    const contentCount = countNotesWithContent(group);
-    return { ids, idsNorm: norm, group, range: group[0].range, contentCount };
-  });
-
-  // Merge/update existing highlights to avoid removal on ID changes
-  mergeExistingHighlights(groups);
-
-  // Build valid ID sets for cleanup (normalized)
-  const validIdJsons = new Set(groups.map(g => g.idsNorm));
-
-  // Remove stale highlights/containers not present in current data
-  cleanupStaleHighlights(validIdJsons);
-
-  // Add missing highlights
-  groups.forEach(({ group, idsNorm, range }) => {
-    try {
-      const exists = document.querySelector(`mark.na-highlight[data-note-ids='${idsNorm}']`);
-      if (exists) {
-        // Update style if changed (for existing highlights)
-        // The first note in group determines the style
-        const noteStyle = group[0].style || 'solid';
-        const styleClass = `na-style-${noteStyle}`;
-        // Remove old style classes and add new one
-        exists.classList.forEach(cls => {
-          if (cls.startsWith('na-style-') && cls !== styleClass) {
-            exists.classList.remove(cls);
-          }
-        });
-        if (!exists.classList.contains(styleClass)) {
-          exists.classList.add(styleClass);
+    const toolbarConfigResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'toolbarConfig' });
+    if (toolbarConfigResp && toolbarConfigResp.data) {
+        currentToolbarConfig = toolbarConfigResp.data;
+    } else {
+        // Fallback: Load legacy for constructing a temporary config or just use legacy vars
+        const styleConfigResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'styleConfig' });
+        const styleConfig = (styleConfigResp && styleConfigResp.data) || currentStyleConfig;
+        
+        const toolVisibilityResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'toolVisibility' });
+        if (toolVisibilityResp && toolVisibilityResp.data) {
+          currentToolVisibility = toolVisibilityResp.data;
         }
-        return;
-      }
-
-      const deserialized = deserializeRange(range);
-      if (deserialized) {
-        const noteStyle = group[0].style || 'solid';
-        highlightRange(deserialized, group, `na-style-${noteStyle}`);
-      }
-    } catch (e) {
-      console.warn('Footprints: Failed to restore highlight', e);
+        
+        // Update global config and CSS variables (Legacy support)
+        currentStyleConfig = styleConfig;
+        Object.keys(currentStyleConfig).forEach(style => {
+          document.documentElement.style.setProperty(`--na-color-${style}`, currentStyleConfig[style]);
+        });
     }
-  });
-}
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local') {
-    if (changes.styleConfig) {
-      currentStyleConfig = changes.styleConfig.newValue;
-      Object.keys(currentStyleConfig).forEach(style => {
-        document.documentElement.style.setProperty(`--na-color-${style}`, currentStyleConfig[style]);
-      });
-    }
+    const currentUrl = window.location.href;
+    const pageNotes = notes.filter(n => n.url === currentUrl && (n.range || n.imageSrc));
+
+    // Group notes by range or imageSrc
+    const groupedNotes = {};
+    pageNotes.forEach(note => {
+      let key;
+      if (note.range) {
+        key = JSON.stringify(note.range);
+      } else {
+        key = `image:${note.imageSrc}`;
+      }
+      if (!groupedNotes[key]) {
+        groupedNotes[key] = [];
+      }
+      groupedNotes[key].push(note);
+    });
+
+    // Prepare normalized groups with sorted ID sets
+    const groups = Object.values(groupedNotes).map(group => {
+      const ids = group.map(n => n.id);
+      const norm = normalizeIds(ids);
+      const contentCount = countNotesWithContent(group);
+      return { ids, idsNorm: norm, group, range: group[0].range, imageSrc: group[0].imageSrc, contentCount };
+    });
+
+    // Merge/update existing highlights to avoid removal on ID changes
+    mergeExistingHighlights(groups);
+
+    // Build valid ID sets for cleanup (normalized)
+    const validIdJsons = new Set(groups.map(g => g.idsNorm));
+
+    // Remove stale highlights/containers not present in current data
+    cleanupStaleHighlights(validIdJsons);
+
+    // Add missing highlights
+    groups.forEach(({ group, idsNorm, range, imageSrc }) => {
+      try {
+        const exists = document.querySelector(`mark.na-highlight[data-note-ids='${idsNorm}']`);
+        if (exists) {
+          // Update style if changed (for existing highlights)
+          const noteStyle = group[0].style || 'solid';
+          const styleClass = `na-style-${noteStyle}`;
+          exists.classList.forEach(cls => {
+            if (cls.startsWith('na-style-') && cls !== styleClass) {
+              exists.classList.remove(cls);
+            }
+          });
+          if (!exists.classList.contains(styleClass)) {
+            exists.classList.add(styleClass);
+          }
+          return;
+        }
+
+        if (range) {
+          let deserialized = deserializeRange(range);
+          // Fallback: if DOM has changed and we cannot restore by path,
+          // try to locate by quote text
+          if (!deserialized && group[0] && group[0].quote) {
+            deserialized = findRangeByQuote(group[0].quote);
+          }
+          if (deserialized) {
+            const noteStyle = group[0].style || 'solid';
+            highlightRange(deserialized, group, `na-style-${noteStyle}`);
+          }
+        } else if (imageSrc) {
+          const noteStyle = group[0].style || 'solid';
+          highlightImage(imageSrc, group, `na-style-${noteStyle}`);
+        }
+      } catch (e) {
+        console.warn('Footprints: Failed to restore highlight', e);
+      }
+    });
+  } catch (e) {
+    console.error('Failed to load highlights', e);
   }
-});
+}
 
 function clearHighlights() {
   const marks = document.querySelectorAll('mark.na-highlight');
@@ -370,6 +597,7 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
   }
 
   let lastMark = null;
+  const createdMarks = [];
   // Use the ID of the most recent note (or first) for data attribute
   const primaryNoteId = notes[0].id; 
   const noteColor = notes[0].color;
@@ -413,6 +641,7 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
     mark.textContent = rangeText;
     parent.insertBefore(mark, node);
     lastMark = mark; 
+    createdMarks.push(mark);
     
     if (afterText) {
       parent.insertBefore(document.createTextNode(afterText), node);
@@ -421,13 +650,12 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
     parent.removeChild(node);
   });
 
-  // Insert Icon Immediately After Last Mark (Always)
-  if (lastMark) {
+  // Attach icon container to the top-right of the overall highlight rectangle
+  if (lastMark && createdMarks.length) {
     const contentCount = countNotesWithContent(notes);
     const iconContainer = document.createElement('span');
     iconContainer.className = `na-icon-container note-anywhere-ui`;
     iconContainer.dataset.noteIds = JSON.stringify(notes.map(n => n.id));
-    iconContainer.style.whiteSpace = 'nowrap'; // Keep icon and count together
     
     const icon = document.createElement('span');
     icon.className = `iconfont icon-footprints na-icon ${styleClass}`;
@@ -436,10 +664,7 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
     }
     icon.dataset.noteIds = JSON.stringify(notes.map(n => n.id));
     
-    // Auto-size icon to match text
-    const computedStyle = window.getComputedStyle(lastMark);
-    const fontSize = computedStyle.fontSize;
-    icon.style.fontSize = fontSize; // Match text size
+    icon.style.fontSize = '20px';
     
     iconContainer.appendChild(icon);
 
@@ -447,7 +672,6 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
       const countSpan = document.createElement('span');
       countSpan.className = 'na-icon-count';
       countSpan.textContent = ` ${contentCount}`;
-      countSpan.style.fontSize = `calc(${fontSize} * 0.75)`; // Scale relative to text
       iconContainer.appendChild(countSpan);
     }
     
@@ -459,13 +683,99 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
       openSidePanelForNote(notes[0]); 
     });
 
-    // Insert immediately after the last mark in the DOM
-    if (lastMark.nextSibling) {
-      lastMark.parentNode.insertBefore(iconContainer, lastMark.nextSibling);
-    } else {
-      lastMark.parentNode.appendChild(iconContainer);
-    }
+    let minTop = Infinity;
+    let maxRight = -Infinity;
+    createdMarks.forEach(m => {
+      const rect = m.getBoundingClientRect();
+      if (!rect || (!rect.width && !rect.height)) return;
+      if (rect.top < minTop) minTop = rect.top;
+      if (rect.right > maxRight) maxRight = rect.right;
+    });
+
+    if (!isFinite(minTop) || !isFinite(maxRight)) return;
+
+    const offsetTop = minTop + window.scrollY - 10;
+    const offsetLeft = maxRight + window.scrollX - 10;
+    iconContainer.style.top = `${offsetTop}px`;
+    iconContainer.style.left = `${offsetLeft}px`;
+
+    document.body.appendChild(iconContainer);
   }
+}
+
+function highlightImage(imageSrc, notes, styleClass = 'na-style-solid') {
+  const allImages = Array.from(document.querySelectorAll('img'));
+  const targetImg = allImages.find(img => img.src === imageSrc);
+  
+  if (!targetImg) return;
+  
+  if (targetImg.parentElement.tagName === 'MARK' && targetImg.parentElement.classList.contains('na-highlight')) {
+    return;
+  }
+  
+  const mark = document.createElement('mark');
+  mark.className = `na-highlight ${styleClass}`;
+  mark.dataset.noteIds = JSON.stringify(notes.map(n => n.id));
+  
+  const noteColor = notes[0].color;
+  const noteStyle = notes[0].style || 'solid';
+  
+  if (noteColor) {
+      if (noteStyle === 'solid') {
+        mark.style.backgroundColor = 'transparent'; 
+        mark.style.outline = `3px solid ${noteColor}`;
+        mark.style.outlineOffset = '-3px';
+      } else if (noteStyle === 'line' || noteStyle === 'dash') {
+        mark.style.backgroundColor = 'transparent';
+        mark.style.borderBottom = `3px ${noteStyle === 'line' ? 'solid' : 'dashed'} ${noteColor}`;
+      } else if (noteStyle === 'wavy') {
+        mark.style.backgroundColor = 'transparent';
+        mark.style.borderBottom = `3px solid ${noteColor}`; 
+      }
+  }
+
+  targetImg.parentNode.insertBefore(mark, targetImg);
+  mark.appendChild(targetImg);
+  
+  const contentCount = countNotesWithContent(notes);
+  const iconContainer = document.createElement('span');
+  iconContainer.className = `na-icon-container note-anywhere-ui`;
+  iconContainer.dataset.noteIds = JSON.stringify(notes.map(n => n.id));
+  
+  const icon = document.createElement('span');
+  icon.className = `iconfont icon-footprints na-icon ${styleClass}`;
+  if (noteColor) {
+    icon.style.color = noteColor;
+  }
+  icon.dataset.noteIds = JSON.stringify(notes.map(n => n.id));
+  
+  icon.style.fontSize = '20px'; 
+  
+  iconContainer.appendChild(icon);
+
+  if (contentCount > 0) {
+    const countSpan = document.createElement('span');
+    countSpan.className = 'na-icon-count';
+    countSpan.textContent = ` ${contentCount}`;
+    countSpan.style.fontSize = '12px';
+    iconContainer.appendChild(countSpan);
+  }
+  
+  iconContainer.addEventListener('mouseenter', (e) => showTooltip(e));
+  iconContainer.addEventListener('mouseleave', (e) => hideTooltip(e));
+  
+  iconContainer.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openSidePanelForNote(notes[0]); 
+  });
+
+  const rect = mark.getBoundingClientRect();
+  const offsetTop = rect.top + window.scrollY - 10;
+  const offsetLeft = rect.right + window.scrollX - 10;
+  iconContainer.style.top = `${offsetTop}px`;
+  iconContainer.style.left = `${offsetLeft}px`;
+
+  document.body.appendChild(iconContainer);
 }
 
 // Normalize and merge helpers
@@ -481,7 +791,7 @@ function parseIds(json) {
 
 function normalizeIds(ids) {
   const copy = [...ids];
-  // Numeric-safe sort; if not numeric, fallback to string compare
+  // Numeric-safe sort
   copy.sort((a, b) => {
     const an = Number(a), bn = Number(b);
     if (!Number.isNaN(an) && !Number.isNaN(bn)) return an - bn;
@@ -492,6 +802,22 @@ function normalizeIds(ids) {
 
 function countNotesWithContent(notes) {
   return notes.filter(n => typeof n.content === 'string' && n.content.trim().length > 0).length;
+}
+
+function showScreenshotOverlay(rect) {
+  if (!rect) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'na-screenshot-overlay note-anywhere-ui';
+  overlay.style.position = 'absolute';
+  overlay.style.top = rect.top + 'px';
+  overlay.style.left = rect.left + 'px';
+  overlay.style.width = rect.width + 'px';
+  overlay.style.height = rect.height + 'px';
+  overlay.style.pointerEvents = 'none';
+  document.body.appendChild(overlay);
+  setTimeout(() => {
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }, 1500);
 }
 
 function isSubsetIds(a, b) {
@@ -537,6 +863,31 @@ function mergeExistingHighlights(groups) {
       }
     });
   });
+}
+
+function findRangeByQuote(quote) {
+  if (!quote || typeof quote !== 'string' || !quote.trim()) return null;
+  try {
+    const iterator = document.createNodeIterator(
+      document.body,
+      NodeFilter.SHOW_TEXT
+    );
+    let node;
+    while ((node = iterator.nextNode())) {
+      const text = node.nodeValue;
+      if (!text) continue;
+      const idx = text.indexOf(quote);
+      if (idx !== -1) {
+        const range = document.createRange();
+        range.setStart(node, idx);
+        range.setEnd(node, idx + quote.length);
+        return range;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
 }
 // --- Tooltip Logic ---
 
@@ -616,8 +967,6 @@ function showTooltip(event) {
        delBtn.onclick = (e) => {
          e.stopPropagation();
          deleteNote(note.id);
-         // Don't remove tooltip immediately, let storage listener refresh it
-         // But UI might look stale. removeTooltip() is safer.
          removeTooltip();
        };
        li.appendChild(delBtn);
@@ -658,7 +1007,7 @@ function showTooltip(event) {
        
        const delBtn = document.createElement('span');
        delBtn.className = 'iconfont icon-delete na-tooltip-delete';
-       delBtn.title = 'Delete Footprint';
+       delBtn.title = 'Delete Thought';
        delBtn.onclick = (e) => {
          e.stopPropagation();
          deleteNote(note.id);
@@ -672,59 +1021,71 @@ function showTooltip(event) {
   }
   
   tooltip.appendChild(list);
-
-  // Footer: Add Note Button
-   const footer = document.createElement('div');
-   footer.className = 'na-tooltip-footer';
-   
-   const addBtn = document.createElement('button');
-   addBtn.className = 'na-tooltip-add-btn';
-   addBtn.title = 'Add Footprint';
-   addBtn.innerHTML = '<span class="iconfont icon-edit"></span> Add Footprint';
-   addBtn.onclick = (e) => {
-     e.stopPropagation();
-     // Open sidepanel to add note for THIS range
-     // We can use the first note's range as they are grouped
-     const refNote = notes[0];
-     chrome.runtime.sendMessage({
-       type: 'OPEN_SIDE_PANEL',
-       payload: {
-         text: refNote.quote,
-         url: refNote.url,
-         range: refNote.range
-         // Don't pass noteId, so it creates a NEW note
-       }
-     });
-     removeTooltip();
-   };
   
+  const footer = document.createElement('div');
+  footer.className = 'na-tooltip-footer';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'na-tooltip-add-btn';
+  const addIcon = document.createElement('span');
+  addIcon.className = 'iconfont icon-footprints';
+  addBtn.appendChild(addIcon);
+  const addText = document.createElement('span');
+  addText.textContent = 'add footprints';
+  addBtn.appendChild(addText);
+  addBtn.onclick = (e) => {
+    e.stopPropagation();
+    const firstNote = notes[0];
+    if (!firstNote || !firstNote.range) return;
+    chrome.runtime.sendMessage({
+      type: 'OPEN_SIDE_PANEL',
+      payload: {
+        text: firstNote.quote || '',
+        url: window.location.href,
+        range: firstNote.range,
+        style: firstNote.style,
+        color: firstNote.color
+      }
+    });
+    removeTooltip();
+  };
   footer.appendChild(addBtn);
   tooltip.appendChild(footer);
-
+  
   document.body.appendChild(tooltip);
-  activeTooltip = tooltip;
 
-  // Position Tooltip
-  const rect = event.target.getBoundingClientRect();
+  // Position Logic
+  const rect = container.getBoundingClientRect();
   const tooltipRect = tooltip.getBoundingClientRect();
   
-  let top = window.scrollY + rect.top - tooltipRect.height - 10;
-  let left = window.scrollX + rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
 
-  // Boundary checks
-  if (top < window.scrollY) {
-    top = window.scrollY + rect.bottom + 10; // Show below if no space above
+  let left = rect.left;
+  let top = rect.bottom + 8;
+
+  // Horizontal Check
+  if (left + tooltipRect.width > viewportWidth) {
+    left = viewportWidth - tooltipRect.width - 20; // 20px padding from right edge
   }
-  if (left < 0) left = 10;
+  if (left < 0) {
+    left = 10;
+  }
+
+  // Vertical Check
+  if (top + tooltipRect.height > viewportHeight) {
+    // Flip to top if no space below
+    top = rect.top - tooltipRect.height - 8;
+  }
   
-  tooltip.style.top = `${top}px`;
-  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${window.scrollY + top}px`;
+  tooltip.style.left = `${window.scrollX + left}px`;
+  activeTooltip = tooltip;
 }
 
 function hideTooltip(event) {
   tooltipHideTimeout = setTimeout(() => {
     removeTooltip();
-  }, 300); // Small delay
+  }, 300);
 }
 
 function removeTooltip() {
@@ -735,130 +1096,104 @@ function removeTooltip() {
 }
 
 async function deleteNote(noteId) {
-  if (!confirm('Are you sure you want to delete this footprint?')) return;
-  
-  const result = await chrome.storage.local.get(['notes']);
-  let notes = result.notes || [];
-  notes = notes.filter(n => n.id !== noteId);
-  
-  await chrome.storage.local.set({ notes: notes });
-}
-
-function openSidePanelForNote(note) {
-   chrome.runtime.sendMessage({
-    type: 'OPEN_SIDE_PANEL',
-    payload: {
-      text: note.quote,
-      url: note.url,
-      range: note.range,
-      noteId: note.id // Pass ID to identify existing note
-    }
-  });
-}
-
-function scrollToNote(noteId) {
-  // Try to find the icon first, as it marks the end (best for reading)
-  // Or find the first highlight mark
-  // We use data-note-ids*="noteId" because we store array of IDs
-  const target = document.querySelector(`.na-icon[data-note-ids*="${noteId}"]`) || 
-                 document.querySelector(`mark.na-highlight[data-note-ids*="${noteId}"]`);
-  
-  if (target) {
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    
-    // Temporary flash effect
-    const originalTransition = target.style.transition;
-    const originalTransform = target.style.transform;
-    
-    target.style.transition = 'transform 0.3s ease-in-out';
-    target.style.transform = 'scale(1.5)';
-    
-    setTimeout(() => {
-      target.style.transform = originalTransform;
-      setTimeout(() => {
-         target.style.transition = originalTransition;
-      }, 300);
-    }, 500);
-  } else {
-    console.warn("Target highlight not found for note:", noteId);
+  if (confirm('Delete this footprint?')) {
+    await chrome.runtime.sendMessage({
+      type: 'DB_DELETE_NOTE',
+      payload: noteId
+    });
   }
 }
 
+function scrollToNote(noteId) {
+  // Find mark or container with this noteId
+  const marks = document.querySelectorAll('mark.na-highlight');
+  for (const mark of marks) {
+    const ids = parseIds(mark.dataset.noteIds);
+    if (ids.includes(noteId)) {
+      mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add a flash effect?
+      mark.style.transition = 'background-color 0.5s';
+      const orig = mark.style.backgroundColor;
+      mark.style.backgroundColor = 'yellow';
+      setTimeout(() => mark.style.backgroundColor = orig, 1000);
+      return;
+    }
+  }
 
-// --- XPath Serialization (Robust) ---
+  const note = cachedNotes.find(n => n.id === noteId);
+  if (note && note.screenshotRect) {
+    const rect = note.screenshotRect;
+    const top = rect.top || 0;
+    const height = rect.height || 0;
+    const targetY = top + height / 2 - window.innerHeight / 2;
+    const finalTop = targetY < 0 ? 0 : targetY;
+    window.scrollTo({ top: finalTop, behavior: 'smooth' });
+    showScreenshotOverlay(rect);
+  }
+}
 
+function openSidePanelForNote(note) {
+  // We can't easily open sidepanel for a specific note if it's not a draft
+  // But we can open sidepanel and maybe it will load the context?
+  // Currently sidepanel only loads draft.
+  // We can send OPEN_SIDE_PANEL with payload.
+  // But payload is usually a NEW selection.
+  // If we just want to VIEW existing note in sidepanel, 
+  // we might need to change sidepanel logic to support "View Mode".
+  // For now, let's just trigger open without payload (or minimal).
+  
+  // Actually, existing logic for OPEN_SIDE_PANEL expects { text, url, range } for a NEW note.
+  // If we want to edit, we need a different flow.
+  // Let's just open the panel.
+  chrome.runtime.sendMessage({
+    type: 'OPEN_SIDE_PANEL',
+    payload: null // No new draft
+  });
+}
+
+// Range serialization helpers (needed for new notes)
 function serializeRange(range) {
+  const startPath = getDomPath(range.startContainer);
+  const endPath = getDomPath(range.endContainer);
   return {
-    startPath: getXPath(range.startContainer),
+    startPath: startPath,
     startOffset: range.startOffset,
-    endPath: getXPath(range.endContainer),
+    endPath: endPath,
     endOffset: range.endOffset
   };
 }
 
 function deserializeRange(serialized) {
-  const startNode = getNodeByXPath(serialized.startPath);
-  const endNode = getNodeByXPath(serialized.endPath);
-  if (!startNode || !endNode) return null;
-  if (startNode.nodeType !== Node.TEXT_NODE || endNode.nodeType !== Node.TEXT_NODE) return null;
-  const startLen = startNode.nodeValue ? startNode.nodeValue.length : 0;
-  const endLen = endNode.nodeValue ? endNode.nodeValue.length : 0;
-  let startOffset = Math.min(Math.max(serialized.startOffset || 0, 0), startLen);
-  let endOffset = Math.min(Math.max(serialized.endOffset || 0, 0), endLen);
-  if (startNode === endNode && startOffset > endOffset) {
-    const tmp = startOffset;
-    startOffset = endOffset;
-    endOffset = tmp;
-  }
-  const range = document.createRange();
-  range.setStart(startNode, startOffset);
-  range.setEnd(endNode, endOffset);
-  return range;
-}
-
-function getXPath(node) {
-  if (node.nodeType === Node.TEXT_NODE) {
-    const parentPath = getXPath(node.parentNode);
-    const index = getChildIndex(node);
-    return `${parentPath}/text()[${index}]`;
-  }
-
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    if (node === document.body) return '/html/body';
-    
-    const parentPath = getXPath(node.parentNode);
-    const tagName = node.tagName.toLowerCase();
-    const index = getChildIndex(node);
-    return `${parentPath}/${tagName}[${index}]`;
-  }
-  
-  return '';
-}
-
-function getChildIndex(node) {
-  let index = 1;
-  let sibling = node.previousSibling;
-  while (sibling) {
-    if (sibling.nodeType === node.nodeType && sibling.nodeName === node.nodeName) {
-      index++;
-    }
-    sibling = sibling.previousSibling;
-  }
-  return index;
-}
-
-function getNodeByXPath(path) {
   try {
-    const evaluator = new XPathEvaluator();
-    const result = evaluator.evaluate(
-      path, 
-      document.documentElement, 
-      null, 
-      XPathResult.FIRST_ORDERED_NODE_TYPE, 
-      null
-    );
-    return result.singleNodeValue;
+    const startNode = getNodeByDomPath(serialized.startPath);
+    const endNode = getNodeByDomPath(serialized.endPath);
+    if (!startNode || !endNode) return null;
+    
+    const range = document.createRange();
+    range.setStart(startNode, serialized.startOffset);
+    range.setEnd(endNode, serialized.endOffset);
+    return range;
   } catch (e) {
     return null;
   }
+}
+
+function getDomPath(node) {
+  const path = [];
+  while (node !== document.body && node.parentNode) {
+    const parent = node.parentNode;
+    const index = Array.prototype.indexOf.call(parent.childNodes, node);
+    path.push(index);
+    node = parent;
+  }
+  return path.reverse();
+}
+
+function getNodeByDomPath(path) {
+  let node = document.body;
+  for (const index of path) {
+    if (!node || !node.childNodes || index >= node.childNodes.length) return null;
+    node = node.childNodes[index];
+  }
+  return node;
 }
