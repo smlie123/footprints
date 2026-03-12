@@ -27,14 +27,24 @@
               <p>2. Right-click on image to add to Footprints</p>
             </div>
           </button>
+        </div>
+        <div class="right-actions">
+          <button id="save-btn">Save</button>
           <span class="input-hint">Ctrl ( ⌘ ) + Enter to save</span>
         </div>
-        <button id="save-btn">Save Footprint</button>
       </div>
     </div>
 
     <div class="recent-section">
-      <h3>Footprints on This Page</h3>
+      <div class="section-header">
+        <h3>Footprints on This Page</h3>
+        <div class="filter-dropdown-container">
+          <select id="note-filter" class="note-filter-select">
+            <option value="current">Current Page</option>
+            <option value="all">All Footprints</option>
+          </select>
+        </div>
+      </div>
       <ul id="recent-list">
         <!-- List items will be injected here -->
       </ul>
@@ -85,6 +95,31 @@
             <span class="slider"></span>
           </label>
         </div>
+
+        <div class="setting-row" data-setting="quick-save">
+          <div class="setting-info">
+            <span class="setting-icon">⚡</span>
+            <div>
+              <div class="setting-label">Quick Save</div>
+              <div class="setting-description">Use Enter to save, Shift + Enter for new line.</div>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <a class="setting-row setting-row-link" href="https://chromewebstore.google.com/detail/footprints-%E2%80%93-web-highligh/mcmocianjmikahenfklonjejnigenjfh?hl=zh-CN" target="_blank">
+          <div class="setting-info">
+            <span class="setting-icon">⭐️</span>
+            <div>
+              <div class="setting-label">Enjoying Footprints?</div>
+              <div class="setting-description">A quick 5-star review and feedback really help the project grow.</div>
+            </div>
+          </div>
+          <span class="setting-link-arrow">›</span>
+        </a>
 
         <a class="setting-row setting-row-link" href="options.html" target="_blank">
           <div class="setting-info">

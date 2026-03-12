@@ -650,7 +650,7 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
     parent.removeChild(node);
   });
 
-  // Attach icon container to the top-right of the overall highlight rectangle
+  // Attach icon container to the top-left of the highlight end position
   if (lastMark && createdMarks.length) {
     const contentCount = countNotesWithContent(notes);
     const iconContainer = document.createElement('span');
@@ -683,19 +683,11 @@ function highlightRange(range, notes, styleClass = 'na-style-solid') {
       openSidePanelForNote(notes[0]); 
     });
 
-    let minTop = Infinity;
-    let maxRight = -Infinity;
-    createdMarks.forEach(m => {
-      const rect = m.getBoundingClientRect();
-      if (!rect || (!rect.width && !rect.height)) return;
-      if (rect.top < minTop) minTop = rect.top;
-      if (rect.right > maxRight) maxRight = rect.right;
-    });
+    const lastMarkRect = lastMark.getBoundingClientRect();
+    if (!lastMarkRect || (!lastMarkRect.width && !lastMarkRect.height)) return;
 
-    if (!isFinite(minTop) || !isFinite(maxRight)) return;
-
-    const offsetTop = minTop + window.scrollY - 10;
-    const offsetLeft = maxRight + window.scrollX - 10;
+    const offsetTop = lastMarkRect.top + window.scrollY - 10;
+    const offsetLeft = lastMarkRect.right + window.scrollX - 10;
     iconContainer.style.top = `${offsetTop}px`;
     iconContainer.style.left = `${offsetLeft}px`;
 

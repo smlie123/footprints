@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Footprints – Web Highlighter, Annotation & Thought Notes",
-  "version": "1.2.0",
+  "name": "Footprints – Side Note,Web Highlighter, Annotation",
+  "version": "1.3.0",
   "description": "a tool that helps you highlight text, add contextual notes, and record your thoughts directly on any webpage.",
   "permissions": [
     "sidePanel",

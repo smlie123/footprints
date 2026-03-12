@@ -15,8 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeSettingsBtn = document.getElementById('close-settings');
   const darkModeToggle = document.querySelector('.quick-settings-section [data-setting="dark-mode"] input[type="checkbox"]');
   const toolbarToggle = document.querySelector('.quick-settings-section [data-setting="enable-toolbar"] input[type="checkbox"]');
+  const quickSaveToggle = document.querySelector('.quick-settings-section [data-setting="quick-save"] input[type="checkbox"]');
   const clearQuoteBtn = document.getElementById('clear-quote');
   const cameraBtn = document.getElementById('camera-btn');
+  const noteFilter = document.getElementById('note-filter');
+  const inputHint = document.querySelector('.input-hint');
 
   const defaultStyles = {
     solid: '#fa7cef',
@@ -45,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let defaultStyleType = 'solid';
   let isDarkMode = false;
   let isToolbarEnabled = true;
+  let isQuickSaveEnabled = false;
 
   let currentDraft = null;
   let currentTabId = null;
@@ -128,6 +132,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (quickSaveToggle) {
+    quickSaveToggle.addEventListener('change', async (e) => {
+      isQuickSaveEnabled = e.target.checked;
+      updateInputHint();
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'DB_SET_SETTING',
+          payload: { key: 'quickSaveEnabled', value: isQuickSaveEnabled }
+        });
+      } catch (err) {
+        console.error('Failed to save quick save setting', err);
+      }
+    });
+  }
+
+  function updateInputHint() {
+    if (inputHint) {
+      inputHint.textContent = isQuickSaveEnabled ? 'Enter to save, Shift + Enter for new line' : 'Ctrl ( ⌘ ) + Enter to save';
+    }
+  }
+
   function applyDarkMode() {
     if (isDarkMode) {
       body.classList.add('dark-mode');
@@ -146,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const defaultStyleResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'defaultStyle' });
     const darkModeResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'sidepanelDarkMode' });
     const toolbarEnabledResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'toolbarEnabled' });
+    const quickSaveResp = await chrome.runtime.sendMessage({ type: 'DB_GET_SETTING', payload: 'quickSaveEnabled' });
 
     currentStyleConfig = (styleResp && styleResp.data) || { ...defaultStyles };
     
@@ -167,6 +193,8 @@ document.addEventListener('DOMContentLoaded', () => {
       isToolbarEnabled = true;
     }
     isDarkMode = !!(darkModeResp && darkModeResp.data);
+    isQuickSaveEnabled = !!(quickSaveResp && quickSaveResp.data);
+
     applyDarkMode();
     if (darkModeToggle) {
       darkModeToggle.checked = isDarkMode;
@@ -174,6 +202,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toolbarToggle) {
       toolbarToggle.checked = isToolbarEnabled;
     }
+    if (quickSaveToggle) {
+      quickSaveToggle.checked = isQuickSaveEnabled;
+    }
+    updateInputHint();
 
     if (configResp && configResp.data) {
       toolbarConfig = configResp.data;
@@ -230,10 +262,24 @@ document.addEventListener('DOMContentLoaded', () => {
     cameraBtn.addEventListener('click', onCameraClick);
   }
 
-  // Allow saving with Ctrl+Enter
+  // Filter change handler
+  if (noteFilter) {
+    noteFilter.addEventListener('change', () => {
+      loadRecentNotes();
+    });
+  }
+
+  // Allow saving with Ctrl+Enter or Enter (if quick save enabled)
   noteInput.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      saveNote();
+    if (isQuickSaveEnabled) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        saveNote();
+      }
+    } else {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        saveNote();
+      }
     }
   });
 
@@ -548,34 +594,50 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderList(allNotes) {
     recentList.innerHTML = '';
     
-    // Filter notes by current URL
-    const pageNotes = allNotes.filter(note => note.url === currentTabUrl);
+    const filterType = noteFilter ? noteFilter.value : 'current';
+    let displayNotes = [];
 
-    if (pageNotes.length === 0) {
-      emptyState.textContent = "No notes yet for this page.";
+    if (filterType === 'all') {
+      const today = new Date().toDateString();
+      displayNotes = allNotes.filter(note => {
+        if (!note.createdAt) return false;
+        return new Date(note.createdAt).toDateString() === today;
+      });
+      if (sectionTitle) sectionTitle.textContent = `Today's Footprints (${displayNotes.length})`;
+    } else {
+      displayNotes = allNotes.filter(note => note.url === currentTabUrl);
+      if (sectionTitle) sectionTitle.textContent = `Footprints on This Page (${displayNotes.length})`;
+    }
+
+    if (displayNotes.length === 0) {
+      emptyState.textContent = filterType === 'all' ? "No footprints for today." : "No footprints for this page.";
       emptyState.classList.remove('hidden');
-      if (sectionTitle) sectionTitle.textContent = "Footprints on This Page";
       return;
     } else {
       emptyState.classList.add('hidden');
-      if (sectionTitle) sectionTitle.textContent = `Footprints on This Page (${pageNotes.length})`;
     }
 
     const groups = {};
-    pageNotes.forEach(n => {
+    displayNotes.forEach(n => {
       let key;
       // If no range and no quote, it's a plain text note that should NOT be merged
       if (!n.range && (!n.quote || n.quote.trim() === '') && !n.image) {
         key = `unique-note-${n.id}`;
       } else {
-        if (n.image) {
-          key = n.imageSrc ? `image-src:${n.imageSrc}` : `image-note-${n.id}`;
-        } else {
-          key = n.range ? JSON.stringify(n.range) : `quote:${(n.quote || '').trim()}`;
-        }
+        const contentKey = n.image 
+          ? (n.imageSrc ? `image-src:${n.imageSrc}` : `image-note-${n.id}`) 
+          : (n.range ? JSON.stringify(n.range) : `quote:${(n.quote || '').trim()}`);
+        // Include URL in key to separate notes from different pages
+        key = `${n.url}::${contentKey}`;
       }
       
-      if (!groups[key]) groups[key] = { quote: n.quote || '', image: n.image || null, range: n.range || null, items: [] };
+      if (!groups[key]) groups[key] = { 
+        quote: n.quote || '', 
+        image: n.image || null, 
+        range: n.range || null, 
+        url: n.url,
+        items: [] 
+      };
       groups[key].items.push(n);
     });
     
@@ -584,6 +646,25 @@ document.addEventListener('DOMContentLoaded', () => {
       li.className = 'timeline-item';
       
       const hasReference = group.quote || group.range || group.image;
+
+      // Display URL if showing all notes
+      if (filterType === 'all') {
+        const urlDiv = document.createElement('div');
+        urlDiv.style.fontSize = '10px';
+        urlDiv.style.color = '#9aa0a6';
+        urlDiv.style.marginBottom = '4px';
+        urlDiv.style.whiteSpace = 'nowrap';
+        urlDiv.style.overflow = 'hidden';
+        urlDiv.style.textOverflow = 'ellipsis';
+        try {
+          const urlObj = new URL(group.url);
+          urlDiv.textContent = urlObj.hostname + (urlObj.pathname.length > 20 ? urlObj.pathname.slice(0, 20) + '...' : urlObj.pathname);
+          urlDiv.title = group.url;
+        } catch (e) {
+          urlDiv.textContent = group.url;
+        }
+        li.appendChild(urlDiv);
+      }
 
       // 1. Note Quote (Clickable) or Image
       if (group.image) {
@@ -599,9 +680,16 @@ document.addEventListener('DOMContentLoaded', () => {
         quoteDiv.title = 'Click to locate';
         // Use the first note's ID for location (or range if supported)
         const noteIdToLocate = group.items[0] ? group.items[0].id : null;
-        quoteDiv.onclick = () => {
-             if (noteIdToLocate) locateNote(noteIdToLocate);
-        };
+        
+        // Only allow click to locate if on the same page
+        if (group.url === currentTabUrl) {
+            quoteDiv.onclick = () => {
+                 if (noteIdToLocate) locateNote(noteIdToLocate);
+            };
+        } else {
+            quoteDiv.style.cursor = 'default';
+            quoteDiv.title = 'From another page';
+        }
         li.appendChild(quoteDiv);
       }
       
@@ -669,25 +757,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const buttonsDiv = document.createElement('div');
       buttonsDiv.className = 'note-action-buttons';
       
-      // Locate Button
+      // Locate/Open Button
       const locateBtn = document.createElement('button');
       locateBtn.className = 'btn-icon btn-locate';
-      locateBtn.innerHTML = '<span class="iconfont icon-location"></span>';
-      locateBtn.title = 'Locate Quote';
       
-      if (!hasReference) {
-        locateBtn.disabled = true;
-        locateBtn.title = 'No web reference to locate';
+      if (group.url === currentTabUrl) {
+          locateBtn.innerHTML = '<span class="iconfont icon-location"></span>';
+          locateBtn.title = 'Locate Quote';
+          
+          if (!hasReference) {
+            locateBtn.disabled = true;
+            locateBtn.title = 'No web reference to locate';
+          } else {
+            locateBtn.onclick = () => {
+               const noteIdToLocate = group.items[0] ? group.items[0].id : null;
+               if (noteIdToLocate) locateNote(noteIdToLocate);
+            };
+          }
       } else {
-        locateBtn.onclick = () => {
-           const noteIdToLocate = group.items[0] ? group.items[0].id : null;
-           if (noteIdToLocate) locateNote(noteIdToLocate);
-        };
+          // Open Page button
+          locateBtn.innerHTML = '<span class="iconfont icon-export"></span>';
+          locateBtn.title = 'Open and Locate';
+          locateBtn.onclick = () => {
+              const noteIdToLocate = group.items[0] ? group.items[0].id : null;
+              if (noteIdToLocate) {
+                openAndLocate(group.url, noteIdToLocate);
+              } else {
+                chrome.tabs.create({ url: group.url });
+              }
+          };
       }
       buttonsDiv.appendChild(locateBtn);
 
-      // Add Annotation Button
-      if (hasReference) {
+      // Add Annotation Button (Only if on same page)
+      if (hasReference && group.url === currentTabUrl) {
         const addBtn = document.createElement('button');
         addBtn.className = 'btn-icon btn-add';
         addBtn.innerHTML = '<span class="iconfont icon-edit"></span>';
@@ -695,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addBtn.onclick = async () => {
           const payload = { 
             text: group.quote, 
-            url: currentTabUrl, 
+            url: group.url, 
             range: group.range,
             image: group.image,
             srcUrl: group.items[0] ? group.items[0].imageSrc : null
@@ -714,18 +817,6 @@ document.addEventListener('DOMContentLoaded', () => {
       deleteGroupBtn.className = 'btn-icon btn-delete';
       deleteGroupBtn.innerHTML = '<span class="iconfont icon-delete"></span>';
       deleteGroupBtn.title = 'Delete All';
-      deleteGroupBtn.onclick = async () => {
-        if (confirm('Delete all footprints for this quote?')) {
-          for (const item of group.items) {
-             await chrome.runtime.sendMessage({
-               type: 'DB_DELETE_NOTE',
-               payload: item.id
-             });
-          }
-        }
-      };
-      actionsDiv.appendChild(deleteGroupBtn);
-      deleteGroupBtn.title = 'Delete Entire Footprint';
       
       deleteGroupBtn.onclick = async (e) => {
         e.stopPropagation();
@@ -785,6 +876,22 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.sendMessage(currentTabId, {
       type: 'SCROLL_TO_NOTE',
       noteId: noteId
+    });
+  }
+
+  function openAndLocate(url, noteId) {
+    chrome.tabs.create({ url: url }, (tab) => {
+      const tabId = tab.id;
+      const listener = (updatedId, changeInfo) => {
+        if (updatedId === tabId && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          chrome.tabs.sendMessage(tabId, {
+            type: 'SCROLL_TO_NOTE',
+            noteId: noteId
+          });
+        }
+      };
+      chrome.tabs.onUpdated.addListener(listener);
     });
   }
 });
